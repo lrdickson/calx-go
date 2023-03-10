@@ -1,16 +1,16 @@
 package viewmodels
 
 import (
+	"log"
 	"reflect"
 
-	"fyne.io/fyne/v2/data/binding"
+	"github.com/lrdickson/ssgo/internal/runner"
 )
 
 type MainViewModel struct {
 	// Public
-	VariableList binding.StringList
-	ValueDisplay binding.String
-	EditorCode   binding.String
+	VariableList []string
+	EditorCode   string
 
 	//Private
 	variableCode  map[string]string
@@ -19,9 +19,17 @@ type MainViewModel struct {
 
 func NewMainViewModel() MainViewModel {
 	return MainViewModel{
-		binding.NewStringList(),
-		binding.NewString(),
-		binding.NewString(),
+		[]string{},
+		"",
 		make(map[string]string),
 		make(map[string]reflect.Value)}
+}
+
+func (vm MainViewModel) RunCode() string {
+	log.Println("Running:", vm.EditorCode)
+	display, err := runner.RunGo(vm.EditorCode)
+	if err != nil {
+		display = "Err"
+	}
+	return display
 }

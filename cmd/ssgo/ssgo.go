@@ -6,9 +6,9 @@ import (
 )
 
 func main() {
+	// Start the GUI
 	mainApp := app.New()
 	mainWindow := mainApp.NewWindow("SSGO")
-
 	mainWindow.SetContent(views.NewMainView())
 	mainWindow.ShowAndRun()
 }
