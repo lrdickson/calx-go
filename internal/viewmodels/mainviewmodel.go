@@ -7,22 +7,18 @@ import (
 	"github.com/lrdickson/ssgo/internal/runner"
 )
 
+type Variable struct {
+	Code  string
+	Value reflect.Value
+}
+
 type MainViewModel struct {
 	// Public
-	VariableList []string
-	EditorCode   string
-
-	//Private
-	variableCode  map[string]string
-	variableValue map[string]reflect.Value
+	EditorCode string
 }
 
 func NewMainViewModel() MainViewModel {
-	return MainViewModel{
-		[]string{},
-		"",
-		make(map[string]string),
-		make(map[string]reflect.Value)}
+	return MainViewModel{""}
 }
 
 func (vm MainViewModel) RunCode() string {

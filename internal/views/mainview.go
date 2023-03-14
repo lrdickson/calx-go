@@ -12,19 +12,19 @@ import (
 func NewMainView() *fyne.Container {
 	mainViewModel := viewmodels.NewMainViewModel()
 
-	// Display the variable
-	variableListBind := binding.BindStringList(&mainViewModel.VariableList)
-	variableListDisplay := widget.NewListWithData(variableListBind,
+	// Display the output
+	outputListBind := binding.NewStringList()
+	outputListDisplay := widget.NewListWithData(outputListBind,
 		func() fyne.CanvasObject {
-			return widget.NewLabel("template")
+			return newVariableView2()
 		},
 		func(i binding.DataItem, o fyne.CanvasObject) {
-			o.(*widget.Label).Bind(i.(binding.String))
+			o.(*VariableView).Bind(i.(binding.String))
 		})
-	newVariableButton := widget.NewButton("New", func() { variableListBind.Append("Hello") })
+	newVariableButton := widget.NewButton("New", func() { outputListBind.Append("Hello") })
 
 	// Display data from the variable
-	variableDisplay := widget.NewLabel("")
+	variableDisplay1 := widget.NewLabel("")
 
 	// Create the editor
 	editorCodeBind := binding.BindString(&mainViewModel.EditorCode)
@@ -34,16 +34,13 @@ func NewMainView() *fyne.Container {
 
 	// Run variable code button
 	runButton := widget.NewButton("Run", func() {
-		variableDisplay.SetText(mainViewModel.RunCode())
+		variableDisplay1.SetText(mainViewModel.RunCode())
 	})
 
 	// Put everything together
 	content := container.NewBorder(
 		nil, nil,
-		container.NewBorder(
-			nil, nil,
-			container.NewBorder(nil, newVariableButton, nil, nil, variableListDisplay),
-			nil, variableDisplay),
+		container.NewBorder(variableDisplay1, newVariableButton, nil, nil, outputListDisplay),
 		nil,
 		container.NewBorder(nil, runButton, nil, nil, variableEditor))
 
