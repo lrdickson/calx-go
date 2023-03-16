@@ -12,7 +12,7 @@ import (
 )
 
 type variableInfo struct {
-	code   string
+	code   *string
 	name   string
 	output string
 }
@@ -23,7 +23,17 @@ func checkErrFatal(message string, err error) {
 	}
 }
 
+func getVariable(variables binding.UntypedList, id widget.ListItemID) variableInfo {
+	variablesInterface, err := variables.Get()
+	checkErrFatal("Failed to get variable interface array:", err)
+	return variablesInterface[id].(variableInfo)
+}
+
 func NewMainView() *fyne.Container {
+
+	// Create the editor
+	variableEditor := widget.NewMultiLineEntry()
+	variableEditor.SetPlaceHolder("Enter text...")
 
 	// Display the output
 	variables := binding.NewUntypedList()
@@ -52,23 +62,37 @@ func NewMainView() *fyne.Container {
 		})
 	newVariableButton := widget.NewButton("New", func() {
 		// Create a new variable
-		newVariable := variableInfo{"", "NewVariable", ""}
+		//code := binding.NewString()
+		//code.Set("")
+		code := ""
+		newVariable := variableInfo{&code, "NewVariable", ""}
 		variables.Append(newVariable)
 		variableList.Refresh()
 	})
 
+	// Edit the code of the selected variable
+	var selectedVariableId widget.ListItemID
+	isVariableSelected := false
+	variableList.OnSelected = func(id widget.ListItemID) {
+		// Assign the code to the editor
+		selectedVariableCode := binding.BindString(getVariable(variables, id).code)
+		variableEditor.Bind(selectedVariableCode)
+
+		// Set the selected variable
+		selectedVariableId = id
+		isVariableSelected = true
+	}
+
 	// Display data from the variable
 	variableDisplay1 := widget.NewLabel("")
 
-	// Create the editor
-	mainViewModel := viewmodels.NewMainViewModel()
-	editorCodeBind := binding.BindString(&mainViewModel.EditorCode)
-	variableEditor := widget.NewMultiLineEntry()
-	variableEditor.Bind(editorCodeBind)
-	variableEditor.SetPlaceHolder("Enter text...")
-
 	// Run variable code button
+	mainViewModel := viewmodels.NewMainViewModel()
 	runButton := widget.NewButton("Run", func() {
+		if !isVariableSelected {
+			return
+		}
+		mainViewModel.EditorCode = *getVariable(variables, selectedVariableId).code
 		variableDisplay1.SetText(mainViewModel.RunCode())
 	})
 
