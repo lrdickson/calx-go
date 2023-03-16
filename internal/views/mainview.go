@@ -13,7 +13,7 @@ import (
 
 type variableInfo struct {
 	code   *string
-	name   string
+	name   binding.String
 	output binding.String
 }
 
@@ -40,7 +40,11 @@ func NewMainView() *fyne.Container {
 	variableList := widget.NewListWithData(
 		variables,
 		func() fyne.CanvasObject {
-			name := widget.NewLabel("Template")
+			name := container.NewBorder(
+				// The width of the variable pane can be controlled by the length of this label
+				widget.NewLabel("AAAAAAAAAAAAAAAAAAAAAAA"),
+				nil, nil, nil,
+				widget.NewEntry())
 			output := widget.NewLabel("Output")
 			return container.NewBorder(name, nil, nil, nil, output)
 		},
@@ -56,18 +60,21 @@ func NewMainView() *fyne.Container {
 			output.Refresh()
 
 			// Set the name
-			name := obj.(*fyne.Container).Objects[1].(*widget.Label)
-			name.SetText(variable.name)
+			name := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*widget.Label)
+			name.Bind(variable.name)
+			nameEntry := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*widget.Entry)
+			nameEntry.Bind(variable.name)
 			name.Refresh()
 		})
+
+	// Create a new variable
 	newVariableButton := widget.NewButton("New", func() {
-		// Create a new variable
-		//code := binding.NewString()
-		//code.Set("")
 		code := ""
+		name := binding.NewString()
+		name.Set("NewVariable")
 		output := binding.NewString()
 		output.Set("")
-		newVariable := variableInfo{&code, "NewVariable", output}
+		newVariable := variableInfo{&code, name, output}
 		variables.Append(newVariable)
 		variableList.Refresh()
 	})
