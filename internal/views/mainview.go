@@ -14,7 +14,7 @@ import (
 type variableInfo struct {
 	code   *string
 	name   string
-	output string
+	output binding.String
 }
 
 func checkErrFatal(message string, err error) {
@@ -52,7 +52,7 @@ func NewMainView() *fyne.Container {
 
 			// Set the output
 			output := obj.(*fyne.Container).Objects[0].(*widget.Label)
-			output.SetText(variable.output)
+			output.Bind(variable.output)
 			output.Refresh()
 
 			// Set the name
@@ -65,7 +65,9 @@ func NewMainView() *fyne.Container {
 		//code := binding.NewString()
 		//code.Set("")
 		code := ""
-		newVariable := variableInfo{&code, "NewVariable", ""}
+		output := binding.NewString()
+		output.Set("")
+		newVariable := variableInfo{&code, "NewVariable", output}
 		variables.Append(newVariable)
 		variableList.Refresh()
 	})
@@ -83,23 +85,21 @@ func NewMainView() *fyne.Container {
 		isVariableSelected = true
 	}
 
-	// Display data from the variable
-	variableDisplay1 := widget.NewLabel("")
-
 	// Run variable code button
 	mainViewModel := viewmodels.NewMainViewModel()
 	runButton := widget.NewButton("Run", func() {
 		if !isVariableSelected {
 			return
 		}
-		mainViewModel.EditorCode = *getVariable(variables, selectedVariableId).code
-		variableDisplay1.SetText(mainViewModel.RunCode())
+		variable := getVariable(variables, selectedVariableId)
+		mainViewModel.EditorCode = *variable.code
+		variable.output.Set(mainViewModel.RunCode())
 	})
 
 	// Put everything together
 	content := container.NewBorder(
 		nil, nil,
-		container.NewBorder(variableDisplay1, newVariableButton, nil, nil, variableList),
+		container.NewBorder(nil, newVariableButton, nil, nil, variableList),
 		nil,
 		container.NewBorder(nil, runButton, nil, nil, variableEditor))
 
