@@ -11,8 +11,8 @@ import (
 	"github.com/lrdickson/ssgo/internal/viewmodels"
 )
 
-type variableInfo struct {
-	code   *string
+type formulaInfo struct {
+	code   binding.String
 	name   binding.String
 	output binding.String
 }
@@ -23,10 +23,10 @@ func checkErrFatal(message string, err error) {
 	}
 }
 
-func getVariable(variables binding.UntypedList, id widget.ListItemID) variableInfo {
+func getVariable(variables binding.UntypedList, id widget.ListItemID) formulaInfo {
 	variablesInterface, err := variables.Get()
 	checkErrFatal("Failed to get variable interface array:", err)
-	return variablesInterface[id].(variableInfo)
+	return variablesInterface[id].(formulaInfo)
 }
 
 func NewMainView() *fyne.Container {
@@ -52,7 +52,7 @@ func NewMainView() *fyne.Container {
 			// Get the variable
 			v, err := item.(binding.Untyped).Get()
 			checkErrFatal("Failed to get variable data:", err)
-			variable := v.(variableInfo)
+			variable := v.(formulaInfo)
 
 			// Set the output
 			output := obj.(*fyne.Container).Objects[0].(*widget.Label)
@@ -69,38 +69,36 @@ func NewMainView() *fyne.Container {
 
 	// Create a new variable
 	newVariableButton := widget.NewButton("New", func() {
-		code := ""
+		code := binding.NewString()
+		code.Set("")
 		name := binding.NewString()
 		name.Set("NewVariable")
 		output := binding.NewString()
 		output.Set("")
-		newVariable := variableInfo{&code, name, output}
+		newVariable := formulaInfo{code, name, output}
 		variables.Append(newVariable)
 		variableList.Refresh()
 	})
 
 	// Edit the code of the selected variable
-	var selectedVariableId widget.ListItemID
-	isVariableSelected := false
 	variableList.OnSelected = func(id widget.ListItemID) {
 		// Assign the code to the editor
-		selectedVariableCode := binding.BindString(getVariable(variables, id).code)
-		variableEditor.Bind(selectedVariableCode)
-
-		// Set the selected variable
-		selectedVariableId = id
-		isVariableSelected = true
+		code := getVariable(variables, id).code
+		variableEditor.Bind(code)
 	}
 
 	// Run variable code button
 	mainViewModel := viewmodels.NewMainViewModel()
 	runButton := widget.NewButton("Run", func() {
-		if !isVariableSelected {
-			return
+		ivariables, err := variables.Get()
+		checkErrFatal("Failed to get variable interface array:", err)
+		for _, ivariable := range ivariables {
+			variable := ivariable.(formulaInfo)
+			code, err := variable.code.Get()
+			checkErrFatal("Failed to get formula code:", err)
+			mainViewModel.EditorCode = code
+			variable.output.Set(mainViewModel.RunCode())
 		}
-		variable := getVariable(variables, selectedVariableId)
-		mainViewModel.EditorCode = *variable.code
-		variable.output.Set(mainViewModel.RunCode())
 	})
 
 	// Put everything together
