@@ -2,6 +2,7 @@ package views
 
 import (
 	"log"
+	"strconv"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -68,11 +69,16 @@ func NewMainView() *fyne.Container {
 		})
 
 	// Create a new variable
+	variableCount := 1
 	newVariableButton := widget.NewButton("New", func() {
+		// Add the variable name
+		name := binding.NewString()
+		name.Set("NewVariable" + strconv.Itoa(variableCount))
+		variableCount++
+
+		// Build the variable
 		code := binding.NewString()
 		code.Set("")
-		name := binding.NewString()
-		name.Set("NewVariable")
 		output := binding.NewString()
 		output.Set("")
 		newVariable := formulaInfo{code, name, output}

@@ -25,6 +25,7 @@ func (vm MainViewModel) RunCode() string {
 	log.Println("Running:", vm.EditorCode)
 	display, err := runner.RunGo(vm.EditorCode)
 	if err != nil {
+		log.Println("Failed to execute code:", err)
 		display = "Err"
 	}
 	return display
