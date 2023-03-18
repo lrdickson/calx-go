@@ -72,9 +72,10 @@ func NewMainView() *container.Split {
 			output.Refresh()
 
 			// Set the name
-			name := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*fyne.Container).Objects[0].(*widget.Label)
-			name.Bind(variable.name)
-			nameEntry := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*fyne.Container).Objects[1].(*widget.Entry)
+			name := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*fyne.Container)
+			nameLabel := name.Objects[0].(*widget.Label)
+			nameLabel.Bind(variable.name)
+			nameEntry := name.Objects[1].(*widget.Entry)
 			nameEntry.Bind(variable.name)
 			name.Refresh()
 		})

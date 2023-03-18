@@ -34,33 +34,51 @@ func RunGo(code string) (display string, returnErr error) {
 		return
 	}
 
-	// Run the code
-	var v reflect.Value
-	for _, line := range strings.Split(code, "\n") {
-		var err error
-		v, err = gointerp.Eval(line)
-		if err != nil {
-			returnErr = fmt.Errorf("Failed to evaluate code: %w", err)
-			return
+	// Build the function
+	codeLines := strings.Split(strings.TrimSpace(code), "\n")
+	functionCode := "package run\nfunc Run() any {\n"
+	for lineNumber, line := range codeLines {
+		if lineNumber == len(codeLines)-1 {
+			if !strings.Contains(line, "return") {
+				functionCode += "return "
+			}
 		}
+		functionCode += line + "\n"
 	}
+	functionCode += "}"
+
+	// Run the code
+	fmt.Println("Function code:\n", functionCode)
+	_, err = gointerp.Eval(functionCode)
+	if err != nil {
+		returnErr = fmt.Errorf("Failed to evaluate code: %w", err)
+		return
+	}
+	v, err := gointerp.Eval("run.Run")
+	if err != nil {
+		returnErr = fmt.Errorf("Failed to get function: %w", err)
+		return
+	}
+	function := v.Interface().(func() any)
+	output := function()
 
 	// Parse the result
-	switch v.Kind() {
-	case reflect.Bool:
-		display = strconv.FormatBool(v.Bool())
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		display = strconv.FormatInt(v.Int(), 10)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		display = strconv.FormatUint(v.Uint(), 10)
-	case reflect.Float32:
-		display = strconv.FormatFloat(v.Float(), 'f', -1, 32)
-	case reflect.Float64:
-		display = strconv.FormatFloat(v.Float(), 'f', -1, 64)
-	case reflect.String:
-		display = v.String()
+	switch output.(type) {
+	case bool:
+		display = strconv.FormatBool(output.(bool))
+	case int:
+		display = strconv.Itoa(output.(int))
+	case uint:
+		display = strconv.FormatUint(uint64(output.(uint)), 10)
+	case float32:
+		display = strconv.FormatFloat(float64(output.(float32)), 'f', -1, 32)
+	case float64:
+		display = strconv.FormatFloat(output.(float64), 'f', -1, 64)
+	case string:
+		display = output.(string)
 	default:
-		display = "???"
+		outputReflect := reflect.ValueOf(output)
+		display = fmt.Sprint(outputReflect.Kind())
 	}
 	return
 }
