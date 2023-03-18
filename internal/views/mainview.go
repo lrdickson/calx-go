@@ -124,10 +124,8 @@ func NewMainView() *fyne.Container {
 	})
 
 	// Put everything together
-	content := container.NewBorder(
-		nil, nil,
+	content := container.NewHSplit(
 		container.NewBorder(nil, newVariableButton, nil, nil, variableList),
-		nil,
 		container.NewBorder(nil, runButton, nil, nil, variableEditor))
 
 	return content
