@@ -41,11 +41,27 @@ func NewMainView() *fyne.Container {
 	variableList := widget.NewListWithData(
 		variables,
 		func() fyne.CanvasObject {
-			name := container.NewBorder(
-				// The width of the variable pane can be controlled by the length of this label
-				widget.NewLabel("AAAAAAAAAAAAAAAAAAAAAAA"),
-				nil, nil, nil,
-				widget.NewEntry())
+			nameDisplay := widget.NewLabel("AAAAAAAAAAAAAAAAAAAAAAA")
+			nameEditor := widget.NewEntry()
+			nameEditor.Hide()
+			editNameButton := widget.NewButton("Edit", func() {})
+			editNameButton.OnTapped = func() {
+				if nameDisplay.Visible() {
+					nameDisplay.Hide()
+					nameEditor.Show()
+					editNameButton.SetText("Update")
+				} else {
+					nameDisplay.Show()
+					nameEditor.Hide()
+					editNameButton.SetText("Edit")
+				}
+			}
+			name := container.NewBorder(nil, nil, nil, editNameButton, container.NewMax(nameDisplay, nameEditor))
+			//name := container.NewBorder(
+			//// The width of the variable pane can be controlled by the length of this label
+			//widget.NewLabel("AAAAAAAAAAAAAAAAAAAAAAA"),
+			//nil, nil, nil,
+			//widget.NewEntry())
 			output := widget.NewLabel("Output")
 			return container.NewBorder(name, nil, nil, nil, output)
 		},
@@ -61,9 +77,9 @@ func NewMainView() *fyne.Container {
 			output.Refresh()
 
 			// Set the name
-			name := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*widget.Label)
+			name := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*fyne.Container).Objects[0].(*widget.Label)
 			name.Bind(variable.name)
-			nameEntry := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*widget.Entry)
+			nameEntry := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*fyne.Container).Objects[1].(*widget.Entry)
 			nameEntry.Bind(variable.name)
 			name.Refresh()
 		})
