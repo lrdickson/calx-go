@@ -30,7 +30,7 @@ func getVariable(variables binding.UntypedList, id widget.ListItemID) formulaInf
 	return variablesInterface[id].(formulaInfo)
 }
 
-func NewMainView() *fyne.Container {
+func NewMainView() *container.Split {
 
 	// Create the editor
 	variableEditor := widget.NewMultiLineEntry()
@@ -41,7 +41,7 @@ func NewMainView() *fyne.Container {
 	variableList := widget.NewListWithData(
 		variables,
 		func() fyne.CanvasObject {
-			nameDisplay := widget.NewLabel("AAAAAAAAAAAAAAAAAAAAAAA")
+			nameDisplay := widget.NewLabel("")
 			nameEditor := widget.NewEntry()
 			nameEditor.Hide()
 			editNameButton := widget.NewButton("Edit", func() {})
@@ -57,11 +57,6 @@ func NewMainView() *fyne.Container {
 				}
 			}
 			name := container.NewBorder(nil, nil, nil, editNameButton, container.NewMax(nameDisplay, nameEditor))
-			//name := container.NewBorder(
-			//// The width of the variable pane can be controlled by the length of this label
-			//widget.NewLabel("AAAAAAAAAAAAAAAAAAAAAAA"),
-			//nil, nil, nil,
-			//widget.NewEntry())
 			output := widget.NewLabel("Output")
 			return container.NewBorder(name, nil, nil, nil, output)
 		},
