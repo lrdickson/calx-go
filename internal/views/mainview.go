@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/lrdickson/ssgo/internal/viewmodels"
+	"github.com/lrdickson/ssgo/internal/runner"
 )
 
 type formulaInfo struct {
@@ -106,7 +106,6 @@ func NewMainView() *container.Split {
 	}
 
 	// Run variable code button
-	mainViewModel := viewmodels.NewMainViewModel()
 	runButton := widget.NewButton("Run", func() {
 		ivariables, err := variables.Get()
 		checkErrFatal("Failed to get variable interface array:", err)
@@ -114,8 +113,13 @@ func NewMainView() *container.Split {
 			variable := ivariable.(formulaInfo)
 			code, err := variable.code.Get()
 			checkErrFatal("Failed to get formula code:", err)
-			mainViewModel.EditorCode = code
-			variable.output.Set(mainViewModel.RunCode())
+			log.Println("Running:", code)
+			display, err := runner.Run(code)
+			if err != nil {
+				log.Println("Failed to execute code:", err)
+				display = "Err"
+			}
+			variable.output.Set(display)
 		}
 	})
 

@@ -13,7 +13,22 @@ import (
 	"github.com/traefik/yaegi/stdlib"
 )
 
-func RunGo(code string) (display string, returnErr error) {
+type worker struct {
+	quit chan int
+	in   chan []any
+	out  chan any
+}
+
+type Kernel struct {
+	workers map[string]*worker
+}
+
+func NewKernel() Kernel {
+	k := Kernel{workers: make(map[string]*worker)}
+	return k
+}
+
+func Run(code string) (display string, returnErr error) {
 	// Start the interpreter
 	gointerp := interp.New(interp.Options{
 		GoPath: build.Default.GOPATH,
