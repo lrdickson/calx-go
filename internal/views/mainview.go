@@ -106,20 +106,25 @@ func NewMainView() *container.Split {
 	}
 
 	// Run variable code button
+	goKernel := runner.NewKernel()
 	runButton := widget.NewButton("Run", func() {
 		ivariables, err := variables.Get()
 		checkErrFatal("Failed to get variable interface array:", err)
+		input := make(map[string]string)
 		for _, ivariable := range ivariables {
 			variable := ivariable.(formulaInfo)
 			code, err := variable.code.Get()
 			checkErrFatal("Failed to get formula code:", err)
-			log.Println("Running:", code)
-			display, err := runner.Run(code)
-			if err != nil {
-				log.Println("Failed to execute code:", err)
-				display = "Err"
-			}
-			variable.output.Set(display)
+			name, err := variable.name.Get()
+			checkErrFatal("Failed to get formula name:", err)
+			input[name] = code
+		}
+		output := goKernel.Update(input)
+		for _, ivariable := range ivariables {
+			variable := ivariable.(formulaInfo)
+			name, err := variable.name.Get()
+			checkErrFatal("Failed to get formula name:", err)
+			variable.output.Set(output[name])
 		}
 	})
 
