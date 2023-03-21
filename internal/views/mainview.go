@@ -8,8 +8,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
-
-	"github.com/lrdickson/ssgo/internal/runner"
+	"github.com/lrdickson/ssgo/internal/kernel"
 )
 
 type formulaInfo struct {
@@ -106,7 +105,7 @@ func NewMainView() *container.Split {
 	}
 
 	// Run variable code button
-	goKernel := runner.NewKernel()
+	goKernel := kernel.NewKernel()
 	runButton := widget.NewButton("Run", func() {
 		ivariables, err := variables.Get()
 		checkErrFatal("Failed to get variable interface array:", err)
