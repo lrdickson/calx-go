@@ -10,7 +10,7 @@ func main() {
 	// Start the GUI
 	mainApp := app.New()
 	mainWindow := mainApp.NewWindow("SSGO")
-	mainWindow.SetContent(views.NewMainView())
+	mainWindow.SetContent(views.NewMainView(mainWindow))
 	mainWindow.Resize(fyne.NewSize(480, 360))
 	mainWindow.ShowAndRun()
 }

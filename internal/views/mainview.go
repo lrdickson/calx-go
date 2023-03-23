@@ -1,12 +1,16 @@
 package views
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"github.com/lrdickson/ssgo/internal/kernel"
 )
@@ -29,33 +33,81 @@ func getVariable(variables binding.UntypedList, id widget.ListItemID) formulaInf
 	return variablesInterface[id].(formulaInfo)
 }
 
-func NewMainView() *container.Split {
+func NewMainView(parent fyne.Window) *container.Split {
 
 	// Create the editor
 	variableEditor := widget.NewMultiLineEntry()
-	variableEditor.SetPlaceHolder("Enter text...")
+	variableEditor.SetPlaceHolder("Formula")
 
 	// Display the output
-	variables := binding.NewUntypedList()
-	variableList := widget.NewListWithData(
-		variables,
+	variables := make(map[string]*formulaInfo)
+	displayVariables := binding.NewUntypedList()
+	displayVariablesView := widget.NewListWithData(
+		displayVariables,
 		func() fyne.CanvasObject {
+			// Add name the elements
 			nameDisplay := widget.NewLabel("")
-			nameEditor := widget.NewEntry()
-			nameEditor.Hide()
-			editNameButton := widget.NewButton("Edit", func() {})
+			editNameButton := widget.NewButton("Rename", func() {})
+
+			// Add a button to change to edit mode
 			editNameButton.OnTapped = func() {
-				if nameDisplay.Visible() {
-					nameDisplay.Hide()
-					nameEditor.Show()
-					editNameButton.SetText("Update")
-				} else {
-					nameDisplay.Show()
-					nameEditor.Hide()
-					editNameButton.SetText("Edit")
+
+				// Create the name editor form item
+				nameEditor := widget.NewEntry()
+				nameEditor.SetText(nameDisplay.Text)
+				oldName := nameDisplay.Text
+				nameEditor.Validator = func(input string) error {
+					// Check if the name is taken
+					_, taken := variables[input]
+					if oldName != input && taken {
+						return errors.New(input + " is already taken")
+					}
+
+					// Check for valid characters
+					letters := `ABCDEFGHIJKLMNOPQRSTUVWXYZ`
+					letters += `abcdefghijklmnopqrstuvwxyz`
+					validCharacters := letters
+					validCharacters += `0123456789`
+					validCharacters += `_`
+					for index, character := range input {
+						characterString := string(character)
+						if index == 1 && !strings.Contains(letters, characterString) {
+							fmt.Println("Invalid variable name")
+							return errors.New(`"` + characterString + "\" is not a valid 1st character")
+						}
+						if !strings.Contains(validCharacters, characterString) {
+							fmt.Println("Invalid variable name")
+							return errors.New(`"` + characterString + "\" is not a valid character")
+						}
+					}
+					return nil
 				}
+				nameItem := &widget.FormItem{
+					Widget: nameEditor,
+				}
+
+				// Show the form
+				items := []*widget.FormItem{nameItem}
+				dialog.ShowForm("Update Formula Name", "Submit", "Cancel", items, func(confirm bool) {
+					// Do nothing if cancelled
+					if !confirm {
+						return
+					}
+
+					// Check if the name changed
+					newName := nameEditor.Text
+					if newName == oldName {
+						return
+					}
+
+					// Update the variable
+					variables[oldName].name.Set(newName)
+					variables[newName] = variables[oldName]
+					delete(variables, oldName)
+				}, parent)
 			}
-			name := container.NewBorder(nil, nil, nil, editNameButton, container.NewMax(nameDisplay, nameEditor))
+			//name := container.NewBorder(nil, nil, nil, editNameButton, container.NewMax(nameDisplay, nameEditor))
+			name := container.NewBorder(nil, nil, nil, editNameButton, nameDisplay)
 			output := widget.NewLabel("Output")
 			return container.NewBorder(name, nil, nil, nil, output)
 		},
@@ -68,68 +120,60 @@ func NewMainView() *container.Split {
 			// Set the output
 			output := obj.(*fyne.Container).Objects[0].(*widget.Label)
 			output.Bind(variable.output)
-			output.Refresh()
 
 			// Set the name
-			name := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*fyne.Container)
-			nameLabel := name.Objects[0].(*widget.Label)
+			nameLabel := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*widget.Label)
 			nameLabel.Bind(variable.name)
-			nameEntry := name.Objects[1].(*widget.Entry)
-			nameEntry.Bind(variable.name)
-			name.Refresh()
 		})
 
 	// Create a new variable
 	variableCount := 1
 	newVariableButton := widget.NewButton("New", func() {
-		// Add the variable name
-		name := binding.NewString()
-		name.Set("NewVariable" + strconv.Itoa(variableCount))
-		variableCount++
+		// Add the variable nameDisplay
+		name := ""
+		for {
+			name = "NewVariable" + strconv.Itoa(variableCount)
+			variableCount++
+			if _, taken := variables[name]; !taken {
+				break
+			}
+		}
+		nameDisplay := binding.NewString()
+		nameDisplay.Set(name)
 
 		// Build the variable
 		code := binding.NewString()
-		code.Set("")
 		output := binding.NewString()
-		output.Set("")
-		newVariable := formulaInfo{code, name, output}
-		variables.Append(newVariable)
-		variableList.Refresh()
+		newVariable := formulaInfo{code, nameDisplay, output}
+		displayVariables.Append(newVariable)
+		variables[name] = &newVariable
 	})
 
 	// Edit the code of the selected variable
-	variableList.OnSelected = func(id widget.ListItemID) {
+	displayVariablesView.OnSelected = func(id widget.ListItemID) {
 		// Assign the code to the editor
-		code := getVariable(variables, id).code
+		code := getVariable(displayVariables, id).code
 		variableEditor.Bind(code)
 	}
 
 	// Run variable code button
 	goKernel := kernel.NewKernel()
 	runButton := widget.NewButton("Run", func() {
-		ivariables, err := variables.Get()
-		checkErrFatal("Failed to get variable interface array:", err)
 		input := make(map[string]string)
-		for _, ivariable := range ivariables {
-			variable := ivariable.(formulaInfo)
+		for name, variable := range variables {
 			code, err := variable.code.Get()
 			checkErrFatal("Failed to get formula code:", err)
-			name, err := variable.name.Get()
-			checkErrFatal("Failed to get formula name:", err)
 			input[name] = code
 		}
 		output := goKernel.Update(input)
-		for _, ivariable := range ivariables {
-			variable := ivariable.(formulaInfo)
-			name, err := variable.name.Get()
-			checkErrFatal("Failed to get formula name:", err)
+		for name, variable := range variables {
 			variable.output.Set(output[name])
 		}
 	})
 
 	// Put everything together
 	content := container.NewHSplit(
-		container.NewBorder(nil, newVariableButton, nil, nil, variableList),
+		container.NewBorder(nil, newVariableButton, nil, nil, displayVariablesView),
 		container.NewBorder(nil, runButton, nil, nil, variableEditor))
 
 	return content

@@ -89,12 +89,9 @@ func NewMainView() *container.Split {
 
 		// Build the variable
 		code := binding.NewString()
-		code.Set("")
 		output := binding.NewString()
-		output.Set("")
 		newVariable := formulaInfo{code, name, output}
 		variables.Append(newVariable)
-		variableList.Refresh()
 	}
 	newVariableButton := widget.NewButton("New", newVariable)
 	for i := 0; i < 1000; i++ {
