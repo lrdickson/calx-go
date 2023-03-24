@@ -35,12 +35,29 @@ func getVariable(variables binding.UntypedList, id widget.ListItemID) formulaInf
 
 func NewMainView(parent fyne.Window) *container.Split {
 
+	variables := make(map[string]*formulaInfo)
+
 	// Create the editor
 	variableEditor := widget.NewMultiLineEntry()
 	variableEditor.SetPlaceHolder("Formula")
 
+	// Formula inputs
+	inputSelect := ""
+	inputSelected := func(s string) {
+		inputSelect = s
+		fmt.Println(inputSelect)
+	}
+	variableSelect := widget.NewSelect([]string{}, inputSelected)
+	inputView := container.NewVBox(variableSelect)
+	updateInputSelect := func() {
+		variableSelectList := make([]string, 0, len(variables))
+		for name := range variables {
+			variableSelectList = append(variableSelectList, name)
+		}
+		variableSelect.Options = variableSelectList
+	}
+
 	// Display the output
-	variables := make(map[string]*formulaInfo)
 	displayVariables := binding.NewUntypedList()
 	displayVariablesView := widget.NewListWithData(
 		displayVariables,
@@ -104,6 +121,7 @@ func NewMainView(parent fyne.Window) *container.Split {
 					variables[oldName].name.Set(newName)
 					variables[newName] = variables[oldName]
 					delete(variables, oldName)
+					updateInputSelect()
 				}, parent)
 			}
 			name := container.NewBorder(nil, nil, nil, editNameButton, nameDisplay)
@@ -146,6 +164,7 @@ func NewMainView(parent fyne.Window) *container.Split {
 		newVariable := formulaInfo{code, nameDisplay, output}
 		displayVariables.Append(newVariable)
 		variables[name] = &newVariable
+		updateInputSelect()
 	})
 
 	// Edit the code of the selected variable
@@ -173,7 +192,7 @@ func NewMainView(parent fyne.Window) *container.Split {
 	// Put everything together
 	content := container.NewHSplit(
 		container.NewBorder(nil, newVariableButton, nil, nil, displayVariablesView),
-		container.NewBorder(nil, runButton, nil, nil, variableEditor))
+		container.NewBorder(inputView, runButton, nil, nil, variableEditor))
 
 	return content
 }
