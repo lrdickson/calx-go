@@ -106,7 +106,6 @@ func NewMainView(parent fyne.Window) *container.Split {
 					delete(variables, oldName)
 				}, parent)
 			}
-			//name := container.NewBorder(nil, nil, nil, editNameButton, container.NewMax(nameDisplay, nameEditor))
 			name := container.NewBorder(nil, nil, nil, editNameButton, nameDisplay)
 			output := widget.NewLabel("Output")
 			return container.NewBorder(name, nil, nil, nil, output)
@@ -160,8 +159,8 @@ func NewMainView(parent fyne.Window) *container.Split {
 	goKernel := kernel.NewKernel()
 	runButton := widget.NewButton("Run", func() {
 		input := make(map[string]string)
-		for name, variable := range variables {
-			code, err := variable.code.Get()
+		for name := range variables {
+			code, err := variables[name].code.Get()
 			checkErrFatal("Failed to get formula code:", err)
 			input[name] = code
 		}
