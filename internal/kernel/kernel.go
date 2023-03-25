@@ -12,31 +12,42 @@ import (
 	"github.com/traefik/yaegi/stdlib"
 )
 
-type workerStatus int
-
 const (
-	ok workerStatus = iota
+	ok int = iota
 	failed
 )
 
-type worker struct {
-	quit   chan int
-	in     chan []any
-	out    chan any
-	status chan workerStatus
-	name   chan string
-	active bool
+type workerStatus struct {
+	name  string
+	value int
 }
 
-func (w *worker) stop() {
-	if w.active {
-		w.quit <- 0
-		w.active = false
-	}
+type worker struct {
+	quit     chan int
+	in       chan []any
+	name     chan string
+	active   bool
+	response chan any
+}
+
+type workerOutput struct {
+	name string
+	data any
 }
 
 type Kernel struct {
 	workers map[string]*worker
+	status  chan workerStatus
+}
+
+func (k *Kernel) stop(name string) {
+	if _, exists := k.workers[name]; exists {
+		if k.workers[name].active {
+			k.workers[name].quit <- 0
+			k.workers[name].active = false
+			<-k.status
+		}
+	}
 }
 
 func NewKernel() Kernel {
@@ -62,25 +73,25 @@ func (k *Kernel) RenameFormula(oldName, newName string) {
 }
 
 func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
+	query := make(chan []string)
+	out := make(chan workerOutput)
+	status := make(chan workerStatus)
+	k.status = status
 	for name, code := range workerFormulas {
 		// Stop the worker if it already existed
-		if oldWorker, exists := k.workers[name]; exists {
-			oldWorker.stop()
-		}
+		k.stop(name)
 
 		// Create a new worker
 		quit := make(chan int)
 		in := make(chan []any)
-		out := make(chan any)
-		status := make(chan workerStatus)
 		nameChannel := make(chan string)
+		response := make(chan any)
 		newWorker := worker{
-			quit:   quit,
-			in:     in,
-			out:    out,
-			status: status,
-			name:   nameChannel,
-			active: true,
+			quit:     quit,
+			in:       in,
+			name:     nameChannel,
+			active:   true,
+			response: response,
 		}
 		k.workers[name] = &newWorker
 
@@ -103,12 +114,15 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 			_, err := gointerp.Eval(`import "math"`)
 			if err != nil {
 				log.Println("Failed to import math:", err)
-				status <- failed
+				status <- workerStatus{name, failed}
 				return
 			}
 
 			// Build the function code
-			functionCode := "package run\nfunc Run() any {\n"
+			functionCode := "package run\nfunc Run(parent string, query chan []string, response chan any) any {\n"
+			functionCode += "get := func(name string) any {\n"
+			functionCode += "query <- []string{parent, name}\n"
+			functionCode += "return (<- response)\n}\n"
 			functionCode += code
 			//codeLines := strings.Split(strings.TrimSpace(code), "\n")
 			//for lineNumber, line := range codeLines {
@@ -126,26 +140,27 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 			_, err = gointerp.Eval(functionCode)
 			if err != nil {
 				log.Println("Failed to evaluate", name, "code:", err)
-				status <- failed
+				status <- workerStatus{name, failed}
 				return
 			}
 			v, err := gointerp.Eval("run.Run")
 			if err != nil {
 				log.Println("Failed to get", name, "function:", err)
-				status <- failed
+				status <- workerStatus{name, failed}
 				return
 			}
-			function := v.Interface().(func() any)
+			function := v.Interface().(func(string, chan []string, chan any) any)
 
 			for {
 				select {
 				case <-quit:
 					fmt.Println("Quiting:", name)
-					status <- ok
+					status <- workerStatus{name, ok}
 					return
 				case <-in:
 					// Get the function output
-					out <- function()
+					result := function(name, query, response)
+					out <- workerOutput{name, result}
 				case name = <-nameChannel:
 					continue
 				}
@@ -154,35 +169,44 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 	}
 
 	// Get the output
-	outputData := make(map[string]string)
 	for _, activeWorker := range k.workers {
 		activeWorker.in <- make([]any, 0)
 	}
-	for name, activeWorker := range k.workers {
+	//for name, activeWorker := range k.workers {
+	outputData := make(map[string]string)
+	responseReceived := make(map[string]bool)
+	for {
 		select {
-		case <-activeWorker.status:
+		case ws := <-status:
+			fmt.Println(ws.name, "quit with ws", ws.value)
+			responseReceived[ws.name] = true
 			continue
-		case output := <-activeWorker.out:
+		case output := <-out:
+			name := output.name
 			fmt.Println("Sending quit signal to:", name)
-			activeWorker.stop()
+			k.stop(name)
 			fmt.Println("quit signal sent to:", name)
-			switch output.(type) {
+			switch output.data.(type) {
 			case bool:
-				outputData[name] = strconv.FormatBool(output.(bool))
+				outputData[name] = strconv.FormatBool(output.data.(bool))
 			case int:
-				outputData[name] = strconv.Itoa(output.(int))
+				outputData[name] = strconv.Itoa(output.data.(int))
 			case uint:
-				outputData[name] = strconv.FormatUint(uint64(output.(uint)), 10)
+				outputData[name] = strconv.FormatUint(uint64(output.data.(uint)), 10)
 			case float32:
-				outputData[name] = strconv.FormatFloat(float64(output.(float32)), 'f', -1, 32)
+				outputData[name] = strconv.FormatFloat(float64(output.data.(float32)), 'f', -1, 32)
 			case float64:
-				outputData[name] = strconv.FormatFloat(output.(float64), 'f', -1, 64)
+				outputData[name] = strconv.FormatFloat(output.data.(float64), 'f', -1, 64)
 			case string:
-				outputData[name] = output.(string)
+				outputData[name] = output.data.(string)
 			default:
-				outputReflect := reflect.ValueOf(output)
+				outputReflect := reflect.ValueOf(output.data)
 				outputData[name] = fmt.Sprint(outputReflect.Kind())
 			}
+			responseReceived[name] = true
+		}
+		if len(responseReceived) == len(k.workers) {
+			break
 		}
 	}
 	return outputData

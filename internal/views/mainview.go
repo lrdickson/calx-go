@@ -45,7 +45,6 @@ func NewMainView(parent fyne.Window) *container.Split {
 		fmt.Println(inputSelect)
 	}
 	variableSelect := widget.NewSelect([]string{}, inputSelected)
-	inputView := container.NewVBox(variableSelect)
 	updateInputSelect := func() {
 		variableSelectList := make([]string, 0, len(variables))
 		for name := range variables {
@@ -53,6 +52,9 @@ func NewMainView(parent fyne.Window) *container.Split {
 		}
 		variableSelect.Options = variableSelectList
 	}
+
+	// Button to add selected inputs to a formula
+	inputView := container.NewVBox(variableSelect)
 
 	// Display the output
 	displayVariables, displayVariablesView := newVariableDisplayView(variables, updateInputSelect, parent)
