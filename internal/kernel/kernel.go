@@ -45,15 +45,19 @@ func (k *Kernel) stop(name string) {
 		if k.workers[name].active {
 			k.workers[name].quit <- 0
 			k.workers[name].active = false
-			<-k.status
 		}
 	}
 }
 
 func NewKernel() Kernel {
-	k := Kernel{workers: make(map[string]*worker)}
+	// Make the kernel
 	status := make(chan workerStatus)
-	k.status = status
+	k := Kernel{
+		workers: make(map[string]*worker),
+		status:  status,
+	}
+
+	// Watch for errors
 	go func() {
 		for {
 			ws := <-status
@@ -188,31 +192,29 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 	outputData := make(map[string]string)
 	responseReceived := make(map[string]bool)
 	for {
-		select {
-		case output := <-out:
-			name := output.name
-			fmt.Println("Sending quit signal to:", name)
-			k.stop(name)
-			fmt.Println("quit signal sent to:", name)
-			switch output.data.(type) {
-			case bool:
-				outputData[name] = strconv.FormatBool(output.data.(bool))
-			case int:
-				outputData[name] = strconv.Itoa(output.data.(int))
-			case uint:
-				outputData[name] = strconv.FormatUint(uint64(output.data.(uint)), 10)
-			case float32:
-				outputData[name] = strconv.FormatFloat(float64(output.data.(float32)), 'f', -1, 32)
-			case float64:
-				outputData[name] = strconv.FormatFloat(output.data.(float64), 'f', -1, 64)
-			case string:
-				outputData[name] = output.data.(string)
-			default:
-				outputReflect := reflect.ValueOf(output.data)
-				outputData[name] = fmt.Sprint(outputReflect.Kind())
-			}
-			responseReceived[name] = true
+		output := <-out
+		name := output.name
+		fmt.Println("Sending quit signal to:", name)
+		k.stop(name)
+		fmt.Println("quit signal sent to:", name)
+		switch output.data.(type) {
+		case bool:
+			outputData[name] = strconv.FormatBool(output.data.(bool))
+		case int:
+			outputData[name] = strconv.Itoa(output.data.(int))
+		case uint:
+			outputData[name] = strconv.FormatUint(uint64(output.data.(uint)), 10)
+		case float32:
+			outputData[name] = strconv.FormatFloat(float64(output.data.(float32)), 'f', -1, 32)
+		case float64:
+			outputData[name] = strconv.FormatFloat(output.data.(float64), 'f', -1, 64)
+		case string:
+			outputData[name] = output.data.(string)
+		default:
+			outputReflect := reflect.ValueOf(output.data)
+			outputData[name] = fmt.Sprint(outputReflect.Kind())
 		}
+		responseReceived[name] = true
 		if len(responseReceived) == activeWorkerCount {
 			break
 		}
