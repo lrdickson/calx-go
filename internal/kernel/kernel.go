@@ -52,6 +52,16 @@ func (k *Kernel) stop(name string) {
 
 func NewKernel() Kernel {
 	k := Kernel{workers: make(map[string]*worker)}
+	status := make(chan workerStatus)
+	k.status = status
+	go func() {
+		for {
+			ws := <-status
+			fmt.Println(ws.name, "quit with status", ws.value)
+			k.workers[ws.name].active = false
+		}
+	}()
+
 	return k
 }
 
@@ -75,8 +85,6 @@ func (k *Kernel) RenameFormula(oldName, newName string) {
 func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 	query := make(chan []string)
 	out := make(chan workerOutput)
-	status := make(chan workerStatus)
-	k.status = status
 	for name, code := range workerFormulas {
 		// Stop the worker if it already existed
 		k.stop(name)
@@ -114,7 +122,7 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 			_, err := gointerp.Eval(`import "math"`)
 			if err != nil {
 				log.Println("Failed to import math:", err)
-				status <- workerStatus{name, failed}
+				k.status <- workerStatus{name, failed}
 				return
 			}
 
@@ -140,13 +148,13 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 			_, err = gointerp.Eval(functionCode)
 			if err != nil {
 				log.Println("Failed to evaluate", name, "code:", err)
-				status <- workerStatus{name, failed}
+				k.status <- workerStatus{name, failed}
 				return
 			}
 			v, err := gointerp.Eval("run.Run")
 			if err != nil {
 				log.Println("Failed to get", name, "function:", err)
-				status <- workerStatus{name, failed}
+				k.status <- workerStatus{name, failed}
 				return
 			}
 			function := v.Interface().(func(string, chan []string, chan any) any)
@@ -155,7 +163,7 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 				select {
 				case <-quit:
 					fmt.Println("Quiting:", name)
-					status <- workerStatus{name, ok}
+					k.status <- workerStatus{name, ok}
 					return
 				case <-in:
 					// Get the function output
@@ -169,18 +177,18 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 	}
 
 	// Get the output
+	activeWorkerCount := 0
 	for _, activeWorker := range k.workers {
-		activeWorker.in <- make([]any, 0)
+		if activeWorker.active {
+			activeWorker.in <- make([]any, 0)
+			activeWorkerCount++
+		}
 	}
 	//for name, activeWorker := range k.workers {
 	outputData := make(map[string]string)
 	responseReceived := make(map[string]bool)
 	for {
 		select {
-		case ws := <-status:
-			fmt.Println(ws.name, "quit with ws", ws.value)
-			responseReceived[ws.name] = true
-			continue
 		case output := <-out:
 			name := output.name
 			fmt.Println("Sending quit signal to:", name)
@@ -205,7 +213,7 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 			}
 			responseReceived[name] = true
 		}
-		if len(responseReceived) == len(k.workers) {
+		if len(responseReceived) == activeWorkerCount {
 			break
 		}
 	}
