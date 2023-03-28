@@ -1,5 +1,17 @@
 # Roadmap
 
+## Next Steps
+
+- Take other variables as inputs
+- Save projects
+- Ability to stop
+- Display arrays
+
+### Later
+
+- Modify the Fyne entry widget to allow syntax highlighting
+	- Upstream contribution
+
 ## Ideas
 
 - possibly have kernels for different languages like Jupyter?
