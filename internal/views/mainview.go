@@ -13,10 +13,11 @@ import (
 )
 
 type formulaInfo struct {
-	code   binding.String
-	name   binding.String
-	output binding.String
-	inputs map[string]*formulaInfo
+	code         binding.String
+	name         binding.String
+	output       binding.String
+	dependencies map[string]*formulaInfo
+	dependents   map[string]*formulaInfo
 }
 
 func checkErrFatal(message string, err error) {
@@ -65,23 +66,29 @@ func NewMainView(parent fyne.Window) *container.Split {
 	// Edit the code of the selected variable
 	var updateInputDisplay func()
 	updateInputDisplay = func() {
+		fmt.Println("Updating input display for:", editorVariable)
 		if _, exists := variables[editorVariable]; !exists {
 			return
 		}
-		if len(variables[editorVariable].inputs) == 0 {
+		if len(variables[editorVariable].dependencies) == 0 {
 			inputDisplay.Hide()
 			return
 		}
 
 		// Create a list of buttons to display
-		inputArray := make([]fyne.CanvasObject, 0, len(variables[editorVariable].inputs))
-		for inputVariable := range variables[editorVariable].inputs {
+		inputArray := make([]fyne.CanvasObject, 0, len(variables[editorVariable].dependencies))
+		for inputVariable := range variables[editorVariable].dependencies {
+			fmt.Printf("Adding %s to input display\n", inputVariable)
+
+			// Make a copy so that the variable being deleted does change as the value of inputVariable changes
+			buttonVariable := inputVariable
 			inputArray = append(inputArray, widget.NewButton(inputVariable+" X", func() {
-				delete(variables[editorVariable].inputs, inputVariable)
+				delete(variables[editorVariable].dependencies, buttonVariable)
 				updateInputDisplay()
 			}))
 		}
 		inputDisplay.Content = container.NewHBox(inputArray...)
+		inputDisplay.Refresh()
 		inputDisplay.Show()
 	}
 	displayVariablesView.OnSelected = func(id widget.ListItemID) {
@@ -108,12 +115,11 @@ func NewMainView(parent fyne.Window) *container.Split {
 		if _, exists := variables[editorVariable]; !exists {
 			return
 		}
-		variables[editorVariable].inputs[selectedInput] = variables[selectedInput]
+		variables[editorVariable].dependencies[selectedInput] = variables[selectedInput]
+		variables[selectedInput].dependents[editorVariable] = variables[editorVariable]
 		updateInputDisplay()
 	})
-	inputView := container.NewVBox(
-		container.NewHBox(inputVariableSelect, addInputButton),
-		inputDisplay)
+	inputView := container.NewBorder(nil, inputDisplay, nil, addInputButton, inputVariableSelect)
 
 	// Create a new variable
 	variableCount := 1
@@ -133,7 +139,7 @@ func NewMainView(parent fyne.Window) *container.Split {
 		// Build the variable
 		code := binding.NewString()
 		output := binding.NewString()
-		newVariable := formulaInfo{code, nameDisplay, output, make(map[string]*formulaInfo)}
+		newVariable := formulaInfo{code, nameDisplay, output, make(map[string]*formulaInfo), make(map[string]*formulaInfo)}
 		displayVariables.Append(newVariable)
 		variables[name] = &newVariable
 		updateInputSelect()

@@ -78,6 +78,11 @@ func newVariableDisplayView(variables map[string]*formulaInfo, updateInputSelect
 					variables[oldName].name.Set(newName)
 					variables[newName] = variables[oldName]
 					delete(variables, oldName)
+					for dependentName := range variables[newName].dependents {
+						variables[dependentName].dependencies[newName] = variables[newName]
+						delete(variables[dependentName].dependencies, oldName)
+						fmt.Printf("%s dependencies: %v\n", dependentName, variables[dependentName].dependencies)
+					}
 					updateInputSelect()
 				}, parent)
 			}
