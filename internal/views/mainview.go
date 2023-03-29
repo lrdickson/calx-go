@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
 	"github.com/lrdickson/ssgo/internal/kernel"
+	"golang.org/x/exp/slices"
 )
 
 type formulaInfo struct {
@@ -54,14 +55,13 @@ func NewMainView(parent fyne.Window) *container.Split {
 				variableSelectList = append(variableSelectList, name)
 			}
 		}
-		inputVariableSelect.SetSelected("")
 		inputVariableSelect.Options = variableSelectList
+		if !slices.Contains(variableSelectList, inputVariableSelect.Selected) {
+			inputVariableSelect.ClearSelected()
+		}
 	}
 	inputDisplay := container.NewHScroll(container.NewHBox())
 	inputDisplay.Hide()
-
-	// Display the output
-	displayVariables, displayVariablesView := newVariableDisplayView(variables, updateInputSelect, parent)
 
 	// Edit the code of the selected variable
 	var updateInputDisplay func()
@@ -91,6 +91,9 @@ func NewMainView(parent fyne.Window) *container.Split {
 		inputDisplay.Refresh()
 		inputDisplay.Show()
 	}
+
+	// Display the output
+	displayVariables, displayVariablesView := newVariableDisplayView(variables, updateInputSelect, updateInputDisplay, parent)
 	displayVariablesView.OnSelected = func(id widget.ListItemID) {
 		// Get the variable
 		variable := getVariable(displayVariables, id)
