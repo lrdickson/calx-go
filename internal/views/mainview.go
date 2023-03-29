@@ -91,9 +91,13 @@ func NewMainView(parent fyne.Window) *container.Split {
 		inputDisplay.Refresh()
 		inputDisplay.Show()
 	}
+	updateInputView := func() {
+		updateInputSelect()
+		updateInputDisplay()
+	}
 
 	// Display the output
-	displayVariables, displayVariablesView := newVariableDisplayView(variables, updateInputSelect, updateInputDisplay, parent)
+	displayVariables, displayVariablesView := newVariableDisplayView(variables, updateInputView, parent)
 	displayVariablesView.OnSelected = func(id widget.ListItemID) {
 		// Get the variable
 		variable := getVariable(displayVariables, id)
@@ -103,8 +107,7 @@ func NewMainView(parent fyne.Window) *container.Split {
 
 		// Update the editor
 		variableEditor.Bind(variable.code)
-		updateInputSelect()
-		updateInputDisplay()
+		updateInputView()
 	}
 
 	// Button to add selected inputs to a formula

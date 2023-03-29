@@ -25,11 +25,11 @@ type workerStatus struct {
 }
 
 type worker struct {
-	quit     chan int
-	in       chan []any
-	name     chan string
-	active   atomic.Bool
-	response chan any
+	quit   chan int
+	in     chan []any
+	name   chan string
+	active atomic.Bool
+	result any
 }
 
 type workerOutput struct {
@@ -80,7 +80,7 @@ func NewKernel() *Kernel {
 	return k
 }
 
-func (k *Kernel) addWorker(name, code string, out chan workerOutput) {
+func (k *Kernel) addWorker(name, code string, done chan string) {
 	// Stop the worker if it already existed
 	k.stop(name)
 
@@ -89,12 +89,10 @@ func (k *Kernel) addWorker(name, code string, out chan workerOutput) {
 	quit := make(chan int)
 	in := make(chan []any)
 	nameChannel := make(chan string)
-	response := make(chan any)
 	newWorker := worker{
-		quit:     quit,
-		in:       in,
-		name:     nameChannel,
-		response: response,
+		quit: quit,
+		in:   in,
+		name: nameChannel,
 	}
 	newWorker.active.Store(true)
 	k.workers[name] = &newWorker
@@ -159,9 +157,9 @@ func (k *Kernel) addWorker(name, code string, out chan workerOutput) {
 			case <-in:
 				// Get the function output
 				fmt.Println(name, "running function")
-				result := function()
+				newWorker.result = function()
 				fmt.Println(name, "function has run")
-				out <- workerOutput{name, result}
+				done <- name
 			case name = <-nameChannel:
 				continue
 			}
@@ -188,9 +186,9 @@ func (k *Kernel) RenameFormula(oldName, newName string) {
 
 func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 	// Make a worker for each formula provided
-	out := make(chan workerOutput)
+	done := make(chan string)
 	for name, code := range workerFormulas {
-		k.addWorker(name, code, out)
+		k.addWorker(name, code, done)
 	}
 
 	// Get the output
@@ -221,27 +219,35 @@ func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
 	responseReceived := make(map[string]bool)
 	for {
 		select {
-		case output := <-out:
-			name := output.name
+		case name := <-done:
+			// Get the worker
 			fmt.Println("Sending quit signal to:", name)
+			activeWorker, workerExists := k.workers[name]
+			if !workerExists {
+				break
+			}
+
+			// Stop the worker
 			// TODO: rename workers and leave them running
 			k.stop(name)
 			fmt.Println("quit signal sent to:", name)
-			switch output.data.(type) {
+
+			// Interpet the data
+			switch activeWorker.result.(type) {
 			case bool:
-				outputData[name] = strconv.FormatBool(output.data.(bool))
+				outputData[name] = strconv.FormatBool(activeWorker.result.(bool))
 			case int:
-				outputData[name] = strconv.Itoa(output.data.(int))
+				outputData[name] = strconv.Itoa(activeWorker.result.(int))
 			case uint:
-				outputData[name] = strconv.FormatUint(uint64(output.data.(uint)), 10)
+				outputData[name] = strconv.FormatUint(uint64(activeWorker.result.(uint)), 10)
 			case float32:
-				outputData[name] = strconv.FormatFloat(float64(output.data.(float32)), 'f', -1, 32)
+				outputData[name] = strconv.FormatFloat(float64(activeWorker.result.(float32)), 'f', -1, 32)
 			case float64:
-				outputData[name] = strconv.FormatFloat(output.data.(float64), 'f', -1, 64)
+				outputData[name] = strconv.FormatFloat(activeWorker.result.(float64), 'f', -1, 64)
 			case string:
-				outputData[name] = output.data.(string)
+				outputData[name] = activeWorker.result.(string)
 			default:
-				outputReflect := reflect.ValueOf(output.data)
+				outputReflect := reflect.ValueOf(activeWorker.result)
 				outputData[name] = fmt.Sprint(outputReflect.Kind())
 			}
 			responseReceived[name] = true

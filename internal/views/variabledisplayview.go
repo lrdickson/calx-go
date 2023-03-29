@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func newVariableDisplayView(variables map[string]*formulaInfo, updateInputSelect func(), updateInputDisplay func(), parent fyne.Window) (binding.UntypedList, *widget.List) {
+func newVariableDisplayView(variables map[string]*formulaInfo, updateInputView func(), parent fyne.Window) (binding.UntypedList, *widget.List) {
 
 	// Display the output
 	displayVariables := binding.NewUntypedList()
@@ -83,8 +83,7 @@ func newVariableDisplayView(variables map[string]*formulaInfo, updateInputSelect
 						delete(variables[dependentName].dependencies, oldName)
 						fmt.Printf("%s dependencies: %v\n", dependentName, variables[dependentName].dependencies)
 					}
-					updateInputSelect()
-					updateInputDisplay()
+					updateInputView()
 				}, parent)
 			}
 			name := container.NewBorder(nil, nil, nil, editNameButton, nameDisplay)

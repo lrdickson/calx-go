@@ -8,8 +8,8 @@ import (
 func TestAddWorker(t *testing.T) {
 	// Add a worker to the kernel
 	goKernel := NewKernel()
-	out := make(chan workerOutput)
-	goKernel.addWorker("test", "return 1", out)
+	done := make(chan string)
+	goKernel.addWorker("test", "return 1", done)
 	activeWorkerCount := goKernel.getActiveCount()
 	if activeWorkerCount != 1 {
 		t.Fatal("Go Kernel should have 1 active worker but instead has", activeWorkerCount)
