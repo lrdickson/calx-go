@@ -9,7 +9,7 @@ func TestAddWorker(t *testing.T) {
 	// Add a worker to the kernel
 	goKernel := NewKernel()
 	done := make(chan string)
-	goKernel.addWorker("test", "return 1", done)
+	goKernel.addWorker("test", Formula{Code: "return 1"}, done)
 	activeWorkerCount := goKernel.getActiveCount()
 	if activeWorkerCount != 1 {
 		t.Fatal("Go Kernel should have 1 active worker but instead has", activeWorkerCount)
@@ -24,7 +24,7 @@ func TestAddWorker(t *testing.T) {
 	}
 }
 
-func checkUpdate(t *testing.T, input, expected map[string]string) {
+func checkUpdate(t *testing.T, input map[string]*Formula, expected map[string]string) {
 	// Start the kernel
 	goKernel := NewKernel()
 	output := goKernel.Update(input)
@@ -33,7 +33,8 @@ func checkUpdate(t *testing.T, input, expected map[string]string) {
 	for key, expectedValue := range expected {
 		if returnedValue, exists := output[key]; exists {
 			if returnedValue != expectedValue {
-				t.Fatalf("Update(%v) did not return ouput[\"%s\"] = \"%s\"", input, key, expectedValue)
+				t.Fatalf("Update(%v) did not return ouput[\"%s\"] = \"%s\", returned %v instead",
+					input, key, expectedValue, returnedValue)
 			}
 		} else {
 			t.Fatalf("Update(%v) ouput did not contain key \"%s\"", input, key)
@@ -42,18 +43,30 @@ func checkUpdate(t *testing.T, input, expected map[string]string) {
 }
 
 func TestBasic(t *testing.T) {
-	input := make(map[string]string)
-	input["a"] = "return 1"
-	input["b"] = "return 2"
+	input := make(map[string]*Formula)
+	input["a"] = &Formula{Code: "return 1"}
+	input["b"] = &Formula{Code: "return 2"}
 	expected := make(map[string]string)
 	expected["a"] = "1"
 	expected["b"] = "2"
 	checkUpdate(t, input, expected)
 }
 
+func TestDependents(t *testing.T) {
+	input := make(map[string]*Formula)
+	input["a"] = &Formula{Code: "return 1"}
+	input["b"] = &Formula{
+		Code:         "return a.(int) + 2",
+		Dependencies: []string{"a"}}
+	expected := make(map[string]string)
+	expected["a"] = "1"
+	expected["b"] = "3"
+	checkUpdate(t, input, expected)
+}
+
 func TestImport(t *testing.T) {
-	input := make(map[string]string)
-	input["math"] = "return math.Pow(2,3)"
+	input := make(map[string]*Formula)
+	input["math"] = &Formula{Code: "return math.Pow(2,3)"}
 	expected := make(map[string]string)
 	expected["math"] = "8"
 	checkUpdate(t, input, expected)

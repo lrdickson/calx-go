@@ -133,7 +133,7 @@ func NewMainView(parent fyne.Window) *container.Split {
 		// Add the variable nameDisplay
 		name := ""
 		for {
-			name = "NewVariable" + strconv.Itoa(variableCount)
+			name = "var" + strconv.Itoa(variableCount)
 			variableCount++
 			if _, taken := variables[name]; !taken {
 				break
@@ -154,11 +154,15 @@ func NewMainView(parent fyne.Window) *container.Split {
 	// Run variable code button
 	goKernel := kernel.NewKernel()
 	runButton := widget.NewButton("Run", func() {
-		input := make(map[string]string)
+		input := make(map[string]*kernel.Formula)
 		for name := range variables {
 			code, err := variables[name].code.Get()
 			checkErrFatal("Failed to get formula code:", err)
-			input[name] = code
+			dependencies := make([]string, 0, len(variables[name].dependencies))
+			for dependencyName := range variables[name].dependencies {
+				dependencies = append(dependencies, dependencyName)
+			}
+			input[name] = &kernel.Formula{Code: code, Dependencies: dependencies}
 		}
 		output := goKernel.Update(input)
 		for name, variable := range variables {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,16 +26,18 @@ type workerStatus struct {
 }
 
 type worker struct {
-	quit   chan int
-	in     chan []any
-	name   chan string
-	active atomic.Bool
-	result any
+	active  atomic.Bool
+	formula Formula
+	name    string
+	quit    chan int
+	result  any
+	run     chan int
+	wait    sync.WaitGroup
 }
 
-type workerOutput struct {
-	name string
-	data any
+type Formula struct {
+	Dependencies []string
+	Code         string
 }
 
 type Kernel struct {
@@ -80,25 +83,25 @@ func NewKernel() *Kernel {
 	return k
 }
 
-func (k *Kernel) addWorker(name, code string, done chan string) {
+func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 	// Stop the worker if it already existed
 	k.stop(name)
 
 	// Create a new worker
 	fmt.Println("Creating new worker:", name)
 	quit := make(chan int)
-	in := make(chan []any)
-	nameChannel := make(chan string)
+	run := make(chan int)
 	newWorker := worker{
-		quit: quit,
-		in:   in,
-		name: nameChannel,
+		quit:    quit,
+		run:     run,
+		name:    name,
+		formula: formula,
 	}
 	newWorker.active.Store(true)
 	k.workers[name] = &newWorker
 
 	// Start the new worker
-	go func(name, code string) {
+	go func() {
 		// Start the interpreter
 		gointerp := interp.New(interp.Options{
 			GoPath: build.Default.GOPATH,
@@ -113,20 +116,14 @@ func (k *Kernel) addWorker(name, code string, done chan string) {
 		}
 
 		// Build the function code
-		//functionCode := "package run\nfunc Run(params ...any) any {\n"
+		//functionCode := "package run\nfunc Run(params any) any {\n"
 		functionCode := "package run\n"
 		functionCode += `import "math"` + "\n"
-		functionCode += "func Run() any {\n"
-		functionCode += code
-		//codeLines := strings.Split(strings.TrimSpace(code), "\n")
-		//for lineNumber, line := range codeLines {
-		//if lineNumber == len(codeLines)-1 {
-		//if !strings.Contains(line, "return") {
-		//functionCode += "return "
-		//}
-		//}
-		//functionCode += line + "\n"
-		//}
+		functionCode += "func Run(params []any) any {\n"
+		for index, dependency := range formula.Dependencies {
+			functionCode += dependency + " := params[" + strconv.Itoa(index) + "]\n"
+		}
+		functionCode += formula.Code
 		functionCode += "}"
 
 		// Create the function
@@ -134,37 +131,49 @@ func (k *Kernel) addWorker(name, code string, done chan string) {
 		_, err := gointerp.Eval(functionCode)
 		if err != nil {
 			log.Println("Failed to evaluate", name, "code:", err)
-			k.status <- workerStatus{name, failed}
+			k.status <- workerStatus{newWorker.name, failed}
 			return
 		}
 		v, err := gointerp.Eval("run.Run")
 		if err != nil {
-			log.Println("Failed to get", name, "function:", err)
-			k.status <- workerStatus{name, failed}
+			log.Println("Failed to get", newWorker.name, "function:", err)
+			k.status <- workerStatus{newWorker.name, failed}
 			return
 		}
 		//function := v.Interface().(func(...any) any)
-		function := v.Interface().(func() any)
+		function := v.Interface().(func([]any) any)
 
 		for {
-			fmt.Println(name, "ready to receive commands")
+			fmt.Println(newWorker.name, "ready to receive commands")
 			select {
 			case <-quit:
-				fmt.Println("Quiting:", name)
-				k.status <- workerStatus{name, ok}
+				fmt.Println("Quiting:", newWorker.name)
+				k.status <- workerStatus{newWorker.name, ok}
 				return
 			//case params := <-in:
-			case <-in:
+			case <-run:
+				// Get the function parameters
+				params := make([]any, 0, len(formula.Dependencies))
+				for _, dependency := range formula.Dependencies {
+					dependentWorker, exists := k.workers[dependency]
+					if !exists {
+						log.Println(newWorker.name, "dependent worker", dependentWorker, "doesn't exist")
+						k.status <- workerStatus{newWorker.name, failed}
+						return
+					}
+					dependentWorker.wait.Wait()
+					params = append(params, dependentWorker.result)
+				}
+
 				// Get the function output
-				fmt.Println(name, "running function")
-				newWorker.result = function()
-				fmt.Println(name, "function has run")
-				done <- name
-			case name = <-nameChannel:
-				continue
+				fmt.Println(newWorker.name, "running function")
+				newWorker.result = function(params)
+				fmt.Println(newWorker.name, "function has run")
+				newWorker.wait.Done()
+				done <- newWorker.name
 			}
 		}
-	}(name, code)
+	}()
 }
 
 func (k *Kernel) getWorker(name string) (*worker, bool) {
@@ -177,28 +186,29 @@ func (k *Kernel) getWorker(name string) (*worker, bool) {
 func (k *Kernel) RenameFormula(oldName, newName string) {
 	if formulaWorker, exists := k.workers[oldName]; exists {
 		if formulaWorker.active.Load() {
-			formulaWorker.name <- newName
+			formulaWorker.name = newName
 		}
 		k.workers[newName] = formulaWorker
 		delete(k.workers, oldName)
 	}
 }
 
-func (k *Kernel) Update(workerFormulas map[string]string) map[string]string {
+func (k *Kernel) Update(workerFormulas map[string]*Formula) map[string]string {
 	// Make a worker for each formula provided
 	done := make(chan string)
-	for name, code := range workerFormulas {
-		k.addWorker(name, code, done)
+	for name, formula := range workerFormulas {
+		k.addWorker(name, *formula, done)
 	}
 
 	// Get the output
 	for _, activeWorker := range k.workers {
 		fmt.Println("Starting:", activeWorker.name)
 		inputSent := false
+		activeWorker.wait.Add(1)
 		for {
 			if activeWorker.active.Load() {
 				select {
-				case activeWorker.in <- make([]any, 0):
+				case activeWorker.run <- 0:
 					fmt.Println("Input sent to:", activeWorker.name)
 					inputSent = true
 				default:
