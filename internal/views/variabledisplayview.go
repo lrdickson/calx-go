@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func newVariableDisplayView(variables map[string]*formulaInfo, updateInputView func(), parent fyne.Window) (binding.UntypedList, *widget.List) {
+func newVariableDisplayView(variables map[string]*formulaInfo, mainEditView *editView, parent fyne.Window) (binding.UntypedList, *widget.List) {
 
 	// Display the output
 	displayVariables := binding.NewUntypedList()
@@ -83,7 +83,7 @@ func newVariableDisplayView(variables map[string]*formulaInfo, updateInputView f
 						delete(variables[dependentName].dependencies, oldName)
 						fmt.Printf("%s dependencies: %v\n", dependentName, variables[dependentName].dependencies)
 					}
-					updateInputView()
+					mainEditView.updateInputView()
 				}, parent)
 			}
 			name := container.NewBorder(nil, nil, nil, editNameButton, nameDisplay)
@@ -104,6 +104,17 @@ func newVariableDisplayView(variables map[string]*formulaInfo, updateInputView f
 			nameLabel := obj.(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*widget.Label)
 			nameLabel.Bind(variable.name)
 		})
+
+	// Update the editor view when a variable is selected
+	displayVariablesView.OnSelected = func(id widget.ListItemID) {
+		// Get the variable
+		variable := getVariable(displayVariables, id)
+		name, err := variable.name.Get()
+		checkErrFatal("Failed to get variable name:", err)
+
+		// Update the editor
+		mainEditView.changeVariable(name, variable.code)
+	}
 
 	return displayVariables, displayVariablesView
 }
