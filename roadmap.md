@@ -3,6 +3,7 @@
 ## Next Steps
 
 - Take other variables as inputs
+- recover when yaegi panics
 - Save projects
 - Ability to stop
 - Display arrays

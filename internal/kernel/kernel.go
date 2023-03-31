@@ -26,13 +26,39 @@ type workerStatus struct {
 }
 
 type worker struct {
-	active  atomic.Bool
-	formula Formula
-	name    string
-	quit    chan int
-	result  any
-	run     chan int
-	wait    sync.WaitGroup
+	active    atomic.Bool
+	formula   Formula
+	name      string
+	quit      chan int
+	result    any
+	runSignal chan int
+	wait      sync.WaitGroup
+}
+
+func (w *worker) run() {
+	fmt.Println("Starting:", w.name)
+	inputSent := false
+	w.wait.Add(1)
+	for {
+		if w.active.Load() {
+			select {
+			case w.runSignal <- 0:
+				fmt.Println("Input sent to:", w.name)
+				inputSent = true
+			default:
+				//fmt.Println(w.name, "not ready")
+				time.Sleep(time.Millisecond)
+			}
+		} else {
+			break
+		}
+
+		// escape if input sent
+		if inputSent {
+			break
+		}
+	}
+
 }
 
 type Formula struct {
@@ -92,10 +118,10 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 	quit := make(chan int)
 	run := make(chan int)
 	newWorker := worker{
-		quit:    quit,
-		run:     run,
-		name:    name,
-		formula: formula,
+		quit:      quit,
+		runSignal: run,
+		name:      name,
+		formula:   formula,
 	}
 	newWorker.active.Store(true)
 	k.workers[name] = &newWorker
@@ -200,31 +226,12 @@ func (k *Kernel) Update(workerFormulas map[string]*Formula) map[string]string {
 		k.addWorker(name, *formula, done)
 	}
 
-	// Get the output
+	// Run all of the workers
 	for _, activeWorker := range k.workers {
-		fmt.Println("Starting:", activeWorker.name)
-		inputSent := false
-		activeWorker.wait.Add(1)
-		for {
-			if activeWorker.active.Load() {
-				select {
-				case activeWorker.run <- 0:
-					fmt.Println("Input sent to:", activeWorker.name)
-					inputSent = true
-				default:
-					//fmt.Println(activeWorker.name, "not ready")
-					time.Sleep(time.Millisecond)
-				}
-			} else {
-				break
-			}
-
-			// escape if input sent
-			if inputSent {
-				break
-			}
-		}
+		activeWorker.run()
 	}
+
+	// Get the output
 	outputData := make(map[string]string)
 	responseReceived := make(map[string]bool)
 	for {

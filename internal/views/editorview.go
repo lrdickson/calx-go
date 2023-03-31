@@ -16,7 +16,7 @@ type editView struct {
 	changeVariable    func(string, binding.String)
 }
 
-func newEditView(variables map[string]*formulaInfo) (returnEditView *editView) {
+func newEditView(variables map[string]*formulaInfo) *editView {
 	// Create the editor
 	variableEditor := widget.NewMultiLineEntry()
 	variableEditor.SetPlaceHolder("Formula")
@@ -90,15 +90,17 @@ func newEditView(variables map[string]*formulaInfo) (returnEditView *editView) {
 
 	// Build the view
 	inputView := container.NewBorder(nil, inputDisplay, nil, addInputButton, inputVariableSelect)
-	returnEditView.editViewContainer = container.NewBorder(inputView, nil, nil, nil, variableEditor)
-	returnEditView.updateInputView = func() {
-		updateInputSelect()
-		updateInputDisplay()
+	return &editView{
+		editViewContainer: container.NewBorder(inputView, nil, nil, nil, variableEditor),
+		updateInputView: func() {
+			updateInputSelect()
+			updateInputDisplay()
+		},
+		changeVariable: func(name string, code binding.String) {
+			editorVariable = name
+			variableEditor.Bind(code)
+			updateInputSelect()
+			updateInputDisplay()
+		},
 	}
-	returnEditView.changeVariable = func(name string, code binding.String) {
-		editorVariable = name
-		variableEditor.Bind(code)
-		returnEditView.updateInputView()
-	}
-	return
 }
