@@ -1,11 +1,14 @@
 package views
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"golang.org/x/exp/slices"
 )
@@ -13,10 +16,10 @@ import (
 type editView struct {
 	updateInputView   func()
 	editViewContainer *fyne.Container
-	changeVariable    func(string, binding.String)
+	changeVariable    func(*formulaInfo)
 }
 
-func newEditView(variables map[string]*formulaInfo) *editView {
+func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *editView {
 	// Create the editor
 	variableEditor := widget.NewMultiLineEntry()
 	variableEditor.SetPlaceHolder("Formula")
@@ -87,18 +90,92 @@ func newEditView(variables map[string]*formulaInfo) *editView {
 		variables[selectedInput].dependents[editorVariable] = variables[editorVariable]
 		updateInputDisplay()
 	})
+	inputView := container.NewBorder(nil, inputDisplay, nil, addInputButton, inputVariableSelect)
+
+	// Add a button to change to edit mode
+	nameLabel := widget.NewLabel(editorVariable)
+	editNameButton := widget.NewButton("Rename", func() {})
+	editNameButton.OnTapped = func() {
+
+		// Create the name editor form item
+		nameEditor := widget.NewEntry()
+		nameEditor.SetText(editorVariable)
+		oldName := editorVariable
+		nameEditor.Validator = func(input string) error {
+			// Check if the name is taken
+			_, taken := variables[input]
+			if oldName != input && taken {
+				return errors.New(input + " is already taken")
+			}
+
+			// Check for valid characters
+			letters := `ABCDEFGHIJKLMNOPQRSTUVWXYZ`
+			letters += `abcdefghijklmnopqrstuvwxyz`
+			validCharacters := letters
+			validCharacters += `0123456789`
+			validCharacters += `_`
+			for index, character := range input {
+				characterString := string(character)
+				if index == 1 && !strings.Contains(letters, characterString) {
+					fmt.Println("Invalid variable name")
+					return errors.New(`"` + characterString + "\" is not a valid 1st character")
+				}
+				if !strings.Contains(validCharacters, characterString) {
+					fmt.Println("Invalid variable name")
+					return errors.New(`"` + characterString + "\" is not a valid character")
+				}
+			}
+			return nil
+		}
+		nameItem := &widget.FormItem{
+			Widget: nameEditor,
+		}
+
+		// Show the form
+		items := []*widget.FormItem{nameItem}
+		dialog.ShowForm("Update Formula Name", "Submit", "Cancel", items, func(confirm bool) {
+			// Do nothing if cancelled
+			if !confirm {
+				return
+			}
+
+			// Check if the name changed
+			newName := nameEditor.Text
+			if newName == oldName {
+				return
+			}
+
+			// Update the variable
+			variables[oldName].name.Set(newName)
+			variables[newName] = variables[oldName]
+			delete(variables, oldName)
+			for dependentName := range variables[newName].dependents {
+				variables[dependentName].dependencies[newName] = variables[newName]
+				delete(variables[dependentName].dependencies, oldName)
+				fmt.Printf("%s dependencies: %v\n", dependentName, variables[dependentName].dependencies)
+			}
+		}, parentWindow)
+	}
 
 	// Build the view
-	inputView := container.NewBorder(nil, inputDisplay, nil, addInputButton, inputVariableSelect)
+	nameView := container.NewBorder(nil, nil, nil, editNameButton, container.New(layout.NewCenterLayout(), nameLabel))
 	return &editView{
-		editViewContainer: container.NewBorder(inputView, nil, nil, nil, variableEditor),
+		editViewContainer: container.NewBorder(
+			container.NewBorder(nameView, nil, nil, nil, inputView),
+			nil, nil, nil, variableEditor),
 		updateInputView: func() {
 			updateInputSelect()
 			updateInputDisplay()
 		},
-		changeVariable: func(name string, code binding.String) {
+		changeVariable: func(variable *formulaInfo) {
+			// Get the variable name
+			name, err := variable.name.Get()
+			checkErrFatal("Failed to get variable name:", err)
+
+			// Change out the editor components
 			editorVariable = name
-			variableEditor.Bind(code)
+			nameLabel.Bind(variable.name)
+			variableEditor.Bind(variable.code)
 			updateInputSelect()
 			updateInputDisplay()
 		},

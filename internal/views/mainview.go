@@ -36,12 +36,17 @@ func RunGui() {
 	mainApp := app.New()
 	mainWindow := mainApp.NewWindow("SSGO")
 
+	// Create child views
 	variables := make(map[string]*formulaInfo)
+	mainEditView := newEditView(variables, mainWindow)
+	displayVariables, displayVariablesView := newVariableDisplayView(variables)
 
-	mainEditView := newEditView(variables)
-
-	// Display the output
-	displayVariables, displayVariablesView := newVariableDisplayView(variables, mainEditView, mainWindow)
+	// Update the editor view when a variable is selected
+	displayVariablesView.OnSelected = func(id widget.ListItemID) {
+		// Update the editor
+		variable := getVariable(displayVariables, id)
+		mainEditView.changeVariable(&variable)
+	}
 
 	// Create a new variable
 	variableCount := 1

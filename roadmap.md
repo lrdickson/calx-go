@@ -20,6 +20,7 @@
 ## Ideas
 
 - possibly have kernels for different languages like Jupyter?
+- extend formula object
 
 ### V3
 
