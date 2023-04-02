@@ -146,32 +146,6 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 			log.Fatal("Interp symbol load error:", err)
 		}
 
-		// Build the function code
-		functionCode := "package run\n"
-		functionCode += `import . "math"` + "\n"
-		functionCode += "func Run(params []any) any {\n"
-		for index, dependency := range formula.Dependencies {
-			functionCode += dependency + " := params[" + strconv.Itoa(index) + "]\n"
-		}
-		functionCode += formula.Code
-		functionCode += "}"
-
-		// Create the function
-		log.Println("Function code:\n", functionCode)
-		_, err := gointerp.Eval(functionCode)
-		if err != nil {
-			log.Println("Failed to evaluate", name, "code:", err)
-			k.status <- workerStatus{newWorker.name, failed}
-			return
-		}
-		v, err := gointerp.Eval("run.Run")
-		if err != nil {
-			log.Println("Failed to get", newWorker.name, "function:", err)
-			k.status <- workerStatus{newWorker.name, failed}
-			return
-		}
-		function := v.Interface().(func([]any) any)
-
 		for {
 			log.Println(newWorker.name, "ready to receive commands")
 			select {
@@ -181,9 +155,15 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 				return
 			//case params := <-in:
 			case <-run:
+				// Build the function code
+				functionCode := "package run\n"
+				functionCode += `import . "math"` + "\n"
+				functionCode += "func Run(params []any) any {\n"
+
 				// Get the function parameters
 				params := make([]any, 0, len(formula.Dependencies))
-				for _, dependency := range formula.Dependencies {
+				for index, dependency := range formula.Dependencies {
+					// Get the result
 					dependentWorker, exists := k.workers[dependency]
 					if !exists {
 						log.Println(newWorker.name, "dependent worker", dependentWorker, "doesn't exist")
@@ -192,7 +172,32 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 					}
 					dependentWorker.wait.Wait()
 					params = append(params, dependentWorker.result)
+
+					// Determine the type
+					paramType := reflect.TypeOf(dependentWorker.result)
+					functionCode += dependency + " := params[" + strconv.Itoa(index) + "]"
+					functionCode += ".(" + paramType.String() + ")\n"
 				}
+
+				// Add in the function code
+				functionCode += formula.Code
+				functionCode += "}"
+
+				// Create the function
+				log.Println("Function code:\n", functionCode)
+				_, err := gointerp.Eval(functionCode)
+				if err != nil {
+					log.Println("Failed to evaluate", name, "code:", err)
+					k.status <- workerStatus{newWorker.name, failed}
+					return
+				}
+				v, err := gointerp.Eval("run.Run")
+				if err != nil {
+					log.Println("Failed to get", newWorker.name, "function:", err)
+					k.status <- workerStatus{newWorker.name, failed}
+					return
+				}
+				function := v.Interface().(func([]any) any)
 
 				// Get the function output
 				log.Println(newWorker.name, "running function")

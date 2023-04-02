@@ -56,7 +56,7 @@ func TestDependents(t *testing.T) {
 	input := make(map[string]*Formula)
 	input["a"] = &Formula{Code: "return 1"}
 	input["b"] = &Formula{
-		Code:         "return a.(int) + 2",
+		Code:         "return a + 2",
 		Dependencies: []string{"a"}}
 	expected := make(map[string]string)
 	expected["a"] = "1"
