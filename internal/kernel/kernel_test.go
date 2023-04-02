@@ -66,7 +66,7 @@ func TestDependents(t *testing.T) {
 
 func TestImport(t *testing.T) {
 	input := make(map[string]*Formula)
-	input["math"] = &Formula{Code: "return math.Pow(2,3)"}
+	input["math"] = &Formula{Code: "return Pow(2,3)"}
 	expected := make(map[string]string)
 	expected["math"] = "8"
 	checkUpdate(t, input, expected)

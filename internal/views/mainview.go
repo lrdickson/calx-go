@@ -86,6 +86,7 @@ func RunGui() {
 			input[name] = &kernel.Formula{Code: code, Dependencies: dependencies}
 		}
 		output := goKernel.Update(input)
+		log.Println("Run output:", output)
 		for name, variable := range variables {
 			variable.output.Set(output[name])
 		}

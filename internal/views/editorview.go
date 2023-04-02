@@ -3,6 +3,7 @@ package views
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -29,7 +30,7 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 	selectedInput := ""
 	inputVariableSelect := widget.NewSelect([]string{}, func(s string) {
 		selectedInput = s
-		fmt.Println(selectedInput)
+		log.Println(selectedInput)
 	})
 	updateInputSelect := func() {
 		variableSelectList := make([]string, 0, len(variables))
@@ -49,7 +50,7 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 	// Edit the code of the selected variable
 	var updateInputDisplay func()
 	updateInputDisplay = func() {
-		fmt.Println("Updating input display for:", editorVariable)
+		log.Println("Updating input display for:", editorVariable)
 		if _, exists := variables[editorVariable]; !exists {
 			return
 		}
@@ -117,11 +118,11 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 			for index, character := range input {
 				characterString := string(character)
 				if index == 1 && !strings.Contains(letters, characterString) {
-					fmt.Println("Invalid variable name")
+					log.Println("Invalid variable name")
 					return errors.New(`"` + characterString + "\" is not a valid 1st character")
 				}
 				if !strings.Contains(validCharacters, characterString) {
-					fmt.Println("Invalid variable name")
+					log.Println("Invalid variable name")
 					return errors.New(`"` + characterString + "\" is not a valid character")
 				}
 			}

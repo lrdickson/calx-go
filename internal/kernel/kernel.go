@@ -35,32 +35,6 @@ type worker struct {
 	wait      sync.WaitGroup
 }
 
-func (w *worker) run() {
-	fmt.Println("Starting:", w.name)
-	inputSent := false
-	w.wait.Add(1)
-	for {
-		if w.active.Load() {
-			select {
-			case w.runSignal <- 0:
-				fmt.Println("Input sent to:", w.name)
-				inputSent = true
-			default:
-				//fmt.Println(w.name, "not ready")
-				time.Sleep(time.Millisecond)
-			}
-		} else {
-			break
-		}
-
-		// escape if input sent
-		if inputSent {
-			break
-		}
-	}
-
-}
-
 type Formula struct {
 	Dependencies []string
 	Code         string
@@ -89,6 +63,37 @@ func (k *Kernel) getActiveCount() int {
 	return activeCount
 }
 
+func (k *Kernel) runWorkers() {
+	for _, w := range k.workers {
+		w.wait.Add(1)
+	}
+
+	for _, w := range k.workers {
+		log.Println("Starting:", w.name)
+		inputSent := false
+		for {
+			if w.active.Load() {
+				select {
+				case w.runSignal <- 0:
+					log.Println("Input sent to:", w.name)
+					inputSent = true
+				default:
+					//log.Println(w.name, "not ready")
+					time.Sleep(time.Millisecond)
+				}
+			} else {
+				break
+			}
+
+			// escape if input sent
+			if inputSent {
+				break
+			}
+		}
+	}
+
+}
+
 func NewKernel() *Kernel {
 	// Make the kernel
 	status := make(chan workerStatus)
@@ -101,7 +106,7 @@ func NewKernel() *Kernel {
 	go func() {
 		for {
 			ws := <-status
-			fmt.Println(ws.name, "quit with status", ws.value)
+			log.Println(ws.name, "quit with status", ws.value)
 			k.workers[ws.name].active.Store(false)
 		}
 	}()
@@ -114,7 +119,7 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 	k.stop(name)
 
 	// Create a new worker
-	fmt.Println("Creating new worker:", name)
+	log.Println("Creating new worker:", name)
 	quit := make(chan int)
 	run := make(chan int)
 	newWorker := worker{
@@ -142,9 +147,8 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 		}
 
 		// Build the function code
-		//functionCode := "package run\nfunc Run(params any) any {\n"
 		functionCode := "package run\n"
-		functionCode += `import "math"` + "\n"
+		functionCode += `import . "math"` + "\n"
 		functionCode += "func Run(params []any) any {\n"
 		for index, dependency := range formula.Dependencies {
 			functionCode += dependency + " := params[" + strconv.Itoa(index) + "]\n"
@@ -153,7 +157,7 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 		functionCode += "}"
 
 		// Create the function
-		fmt.Println("Function code:\n", functionCode)
+		log.Println("Function code:\n", functionCode)
 		_, err := gointerp.Eval(functionCode)
 		if err != nil {
 			log.Println("Failed to evaluate", name, "code:", err)
@@ -166,14 +170,13 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 			k.status <- workerStatus{newWorker.name, failed}
 			return
 		}
-		//function := v.Interface().(func(...any) any)
 		function := v.Interface().(func([]any) any)
 
 		for {
-			fmt.Println(newWorker.name, "ready to receive commands")
+			log.Println(newWorker.name, "ready to receive commands")
 			select {
 			case <-quit:
-				fmt.Println("Quiting:", newWorker.name)
+				log.Println("Quiting:", newWorker.name)
 				k.status <- workerStatus{newWorker.name, ok}
 				return
 			//case params := <-in:
@@ -192,9 +195,18 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 				}
 
 				// Get the function output
-				fmt.Println(newWorker.name, "running function")
-				newWorker.result = function(params)
-				fmt.Println(newWorker.name, "function has run")
+				log.Println(newWorker.name, "running function")
+				newWorker.result = func() (result any) {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Println("Recoverd from yaegi panic:", r)
+							result = r
+							return
+						}
+					}()
+					return function(params)
+				}()
+				log.Println(newWorker.name, "function returned result", newWorker.result)
 				newWorker.wait.Done()
 				done <- newWorker.name
 			}
@@ -227,9 +239,7 @@ func (k *Kernel) Update(workerFormulas map[string]*Formula) map[string]string {
 	}
 
 	// Run all of the workers
-	for _, activeWorker := range k.workers {
-		activeWorker.run()
-	}
+	k.runWorkers()
 
 	// Get the output
 	outputData := make(map[string]string)
@@ -238,7 +248,7 @@ func (k *Kernel) Update(workerFormulas map[string]*Formula) map[string]string {
 		select {
 		case name := <-done:
 			// Get the worker
-			fmt.Println("Sending quit signal to:", name)
+			log.Println("Sending quit signal to:", name)
 			activeWorker, workerExists := k.workers[name]
 			if !workerExists {
 				break
@@ -247,34 +257,35 @@ func (k *Kernel) Update(workerFormulas map[string]*Formula) map[string]string {
 			// Stop the worker
 			// TODO: rename workers and leave them running
 			k.stop(name)
-			fmt.Println("quit signal sent to:", name)
+			log.Println("quit signal sent to:", name)
 
 			// Interpet the data
-			switch activeWorker.result.(type) {
+			result := activeWorker.result
+			switch result.(type) {
 			case bool:
-				outputData[name] = strconv.FormatBool(activeWorker.result.(bool))
+				outputData[name] = strconv.FormatBool(result.(bool))
 			case int:
-				outputData[name] = strconv.Itoa(activeWorker.result.(int))
+				outputData[name] = strconv.Itoa(result.(int))
 			case uint:
-				outputData[name] = strconv.FormatUint(uint64(activeWorker.result.(uint)), 10)
+				outputData[name] = strconv.FormatUint(uint64(result.(uint)), 10)
 			case float32:
-				outputData[name] = strconv.FormatFloat(float64(activeWorker.result.(float32)), 'f', -1, 32)
+				outputData[name] = strconv.FormatFloat(float64(result.(float32)), 'f', -1, 32)
 			case float64:
-				outputData[name] = strconv.FormatFloat(activeWorker.result.(float64), 'f', -1, 64)
+				outputData[name] = strconv.FormatFloat(result.(float64), 'f', -1, 64)
 			case string:
-				outputData[name] = activeWorker.result.(string)
+				outputData[name] = result.(string)
 			default:
-				outputReflect := reflect.ValueOf(activeWorker.result)
-				outputData[name] = fmt.Sprint(outputReflect.Kind())
+				outputReflect := reflect.ValueOf(result)
+				outputData[name] = fmt.Sprintf("%v", outputReflect)
 			}
 			responseReceived[name] = true
 		case <-time.After(time.Millisecond):
-			//fmt.Println("timeout")
+			//log.Println("timeout")
 		}
 		if k.getActiveCount() == 0 {
 			break
 		}
-		//fmt.Println("Workers are still active")
+		//log.Println("Workers are still active")
 	}
 	return outputData
 }
