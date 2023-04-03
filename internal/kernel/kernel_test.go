@@ -54,13 +54,20 @@ func TestBasic(t *testing.T) {
 
 func TestDependents(t *testing.T) {
 	input := make(map[string]*Formula)
-	input["a"] = &Formula{Code: "return 1"}
-	input["b"] = &Formula{
-		Code:         "return a + 2",
-		Dependencies: []string{"a"}}
+	input["int1"] = &Formula{Code: "return 1"}
+	input["int2"] = &Formula{
+		Code:         "return int1 + 2",
+		Dependencies: []string{"int1"}}
+	input["string1"] = &Formula{Code: `return "hello"`}
+	input["string2"] = &Formula{
+		Code:         `return string1 + " world"`,
+		Dependencies: []string{"string1"}}
 	expected := make(map[string]string)
-	expected["a"] = "1"
-	expected["b"] = "3"
+	expected["int1"] = "1"
+	expected["int2"] = "3"
+	expected["string1"] = "hello"
+	expected["string2"] = "hello world"
+	checkUpdate(t, input, expected)
 	checkUpdate(t, input, expected)
 }
 

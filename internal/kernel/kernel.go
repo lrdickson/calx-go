@@ -108,6 +108,9 @@ func NewKernel() *Kernel {
 			ws := <-status
 			log.Println(ws.name, "quit with status", ws.value)
 			k.workers[ws.name].active.Store(false)
+			if ws.value != ok {
+				k.workers[ws.name].wait.Done()
+			}
 		}
 	}()
 
@@ -174,9 +177,12 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 					params = append(params, dependentWorker.result)
 
 					// Determine the type
-					paramType := reflect.TypeOf(dependentWorker.result)
 					functionCode += dependency + " := params[" + strconv.Itoa(index) + "]"
-					functionCode += ".(" + paramType.String() + ")\n"
+					if dependentWorker.result != nil {
+						paramType := reflect.TypeOf(dependentWorker.result)
+						functionCode += ".(" + paramType.String() + ")"
+					}
+					functionCode += "\n"
 				}
 
 				// Add in the function code
@@ -187,6 +193,7 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 				log.Println("Function code:\n", functionCode)
 				_, err := gointerp.Eval(functionCode)
 				if err != nil {
+					// TODO: Display this error to the user
 					log.Println("Failed to evaluate", name, "code:", err)
 					k.status <- workerStatus{newWorker.name, failed}
 					return
@@ -204,6 +211,7 @@ func (k *Kernel) addWorker(name string, formula Formula, done chan string) {
 				newWorker.result = func() (result any) {
 					defer func() {
 						if r := recover(); r != nil {
+							// TODO: Display this error to the user
 							log.Println("Recoverd from yaegi panic:", r)
 							result = r
 							return

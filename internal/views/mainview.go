@@ -36,6 +36,11 @@ func RunGui() {
 	mainApp := app.New()
 	mainWindow := mainApp.NewWindow("SSGO")
 
+	// Create the menu
+	fileMenu := fyne.NewMenu("File")
+	mainMenu := fyne.NewMainMenu(fileMenu)
+	mainWindow.SetMainMenu(mainMenu)
+
 	// Create child views
 	variables := make(map[string]*formulaInfo)
 	mainEditView := newEditView(variables, mainWindow)
