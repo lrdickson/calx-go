@@ -47,10 +47,12 @@ func RunGui() {
 	displayVariables, displayVariablesView := newVariableDisplayView(variables)
 
 	// Update the editor view when a variable is selected
+	var selectedVariable *formulaInfo
 	displayVariablesView.OnSelected = func(id widget.ListItemID) {
 		// Update the editor
 		variable := getVariable(displayVariables, id)
-		mainEditView.changeVariable(&variable)
+		selectedVariable = &variable
+		mainEditView.updateEditorView(&variable)
 	}
 
 	// Create a new variable
@@ -74,7 +76,7 @@ func RunGui() {
 		newVariable := formulaInfo{code, nameDisplay, output, make(map[string]*formulaInfo), make(map[string]*formulaInfo)}
 		displayVariables.Append(newVariable)
 		variables[name] = &newVariable
-		mainEditView.updateInputView(name)
+		mainEditView.updateEditorView(selectedVariable)
 	})
 
 	// Run variable code button

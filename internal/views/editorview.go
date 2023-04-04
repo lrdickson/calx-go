@@ -2,7 +2,6 @@ package views
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"strings"
 
@@ -15,9 +14,8 @@ import (
 )
 
 type editView struct {
-	updateInputView   func(string)
 	editViewContainer *fyne.Container
-	changeVariable    func(*formulaInfo)
+	updateEditorView  func(*formulaInfo)
 }
 
 func updateRenameFunction(editorVariable string, variables map[string]*formulaInfo, parentWindow fyne.Window) func() {
@@ -78,7 +76,7 @@ func updateRenameFunction(editorVariable string, variables map[string]*formulaIn
 			for dependentName := range variables[newName].dependents {
 				variables[dependentName].dependencies[newName] = variables[newName]
 				delete(variables[dependentName].dependencies, oldName)
-				fmt.Printf("%s dependencies: %v\n", dependentName, variables[dependentName].dependencies)
+				log.Printf("%s dependencies: %v\n", dependentName, variables[dependentName].dependencies)
 			}
 		}, parentWindow)
 	}
@@ -121,7 +119,7 @@ func newInputView(editorVariable string, variables map[string]*formulaInfo) (*fy
 		// Create a list of buttons to display
 		inputArray := make([]fyne.CanvasObject, 0, len(variables[editorVariable].dependencies))
 		for inputVariable := range variables[editorVariable].dependencies {
-			fmt.Printf("Adding %s to input display\n", inputVariable)
+			log.Printf("Adding %s to input display\n", inputVariable)
 
 			// Make a copy so that the variable being deleted does change as the value of inputVariable changes
 			buttonVariable := inputVariable
@@ -172,6 +170,10 @@ func newInputView(editorVariable string, variables map[string]*formulaInfo) (*fy
 	return inputView, updateInputView
 }
 
+func updateDeleteFunction() func() {
+	return func() {}
+}
+
 func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *editView {
 	// Create the editor
 	variableEditor := widget.NewMultiLineEntry()
@@ -181,29 +183,44 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 	// Create the input view
 	inputView, updateInputView := newInputView(editorVariable, variables)
 
-	// Add a button to change to edit mode
+	// Add the delete button
+	deleteButton := widget.NewButton("Delete", nil)
+
+	// Add the name label
+	editNameButton := widget.NewButton("Rename", nil)
 	nameLabel := widget.NewLabel(editorVariable)
-	editNameButton := widget.NewButton("Rename", func() {})
+	nameView := container.NewBorder(nil, nil, nil, container.NewHBox(editNameButton, deleteButton),
+		container.New(layout.NewCenterLayout(), nameLabel))
 
 	// Build the view
-	nameView := container.NewBorder(nil, nil, nil, editNameButton, container.New(layout.NewCenterLayout(), nameLabel))
+	var previousVariable *formulaInfo
 	return &editView{
 		editViewContainer: container.NewBorder(
 			container.NewBorder(nameView, nil, nil, nil, inputView),
 			nil, nil, nil, variableEditor),
-		updateInputView: func(variableName string) {
-			updateInputView(variableName)
-			editNameButton.OnTapped = updateRenameFunction(variableName, variables, parentWindow)
-		},
-		changeVariable: func(variable *formulaInfo) {
+		updateEditorView: func(variable *formulaInfo) {
+			// Return if variable doesn't exist
+			if variable == nil {
+				return
+			}
+
 			// Get the variable name
 			name, err := variable.name.Get()
 			checkErrFatal("Failed to get variable name:", err)
 
+			if editorVariable != name {
+				editorVariable = name
+				editNameButton.OnTapped = updateRenameFunction(name, variables, parentWindow)
+				deleteButton.OnTapped = updateDeleteFunction()
+			}
+
+			if previousVariable != variable {
+				previousVariable = variable
+				nameLabel.Bind(variable.name)
+				variableEditor.Bind(variable.code)
+			}
+
 			// Change out the editor components
-			editorVariable = name
-			nameLabel.Bind(variable.name)
-			variableEditor.Bind(variable.code)
 			updateInputView(name)
 		},
 	}
