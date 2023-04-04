@@ -84,19 +84,14 @@ func updateRenameFunction(editorVariable string, variables map[string]*formulaIn
 	}
 }
 
-func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *editView {
-	// Create the editor
-	variableEditor := widget.NewMultiLineEntry()
-	variableEditor.SetPlaceHolder("Formula")
-	editorVariable := ""
-
+func newInputView(editorVariable string, variables map[string]*formulaInfo) (*fyne.Container, func(string)) {
 	// Formula inputs selection
 	selectedInput := ""
 	inputVariableSelect := widget.NewSelect([]string{}, func(s string) {
 		selectedInput = s
 		log.Println("Selected input:", selectedInput)
 	})
-	updateInputSelect := func() {
+	updateInputSelect := func(editorVariable string) {
 		variableSelectList := make([]string, 0, len(variables))
 		for name := range variables {
 			if name != editorVariable {
@@ -112,8 +107,8 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 	inputDisplay.Hide()
 
 	// Edit the code of the selected variable
-	var updateInputDisplay func()
-	updateInputDisplay = func() {
+	var updateInputDisplay func(editorVariable string)
+	updateInputDisplay = func(editorVariable string) {
 		log.Println("Updating input display for:", editorVariable)
 		if _, exists := variables[editorVariable]; !exists {
 			return
@@ -132,7 +127,7 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 			buttonVariable := inputVariable
 			inputArray = append(inputArray, widget.NewButton(inputVariable+" X", func() {
 				delete(variables[editorVariable].dependencies, buttonVariable)
-				updateInputDisplay()
+				updateInputDisplay(editorVariable)
 			}))
 		}
 		inputDisplay.Content = container.NewHBox(inputArray...)
@@ -153,9 +148,38 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 		}
 		variables[editorVariable].dependencies[selectedInput] = variables[selectedInput]
 		variables[selectedInput].dependents[editorVariable] = variables[editorVariable]
-		updateInputDisplay()
+		updateInputDisplay(editorVariable)
 	})
 	inputView := container.NewBorder(nil, inputDisplay, nil, addInputButton, inputVariableSelect)
+	updateInputView := func(editorVariable string) {
+		updateInputSelect(editorVariable)
+		updateInputDisplay(editorVariable)
+		addInputButton.OnTapped = func() {
+			if selectedInput == editorVariable {
+				return
+			}
+			if _, exists := variables[selectedInput]; !exists {
+				return
+			}
+			if _, exists := variables[editorVariable]; !exists {
+				return
+			}
+			variables[editorVariable].dependencies[selectedInput] = variables[selectedInput]
+			variables[selectedInput].dependents[editorVariable] = variables[editorVariable]
+			updateInputDisplay(editorVariable)
+		}
+	}
+	return inputView, updateInputView
+}
+
+func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *editView {
+	// Create the editor
+	variableEditor := widget.NewMultiLineEntry()
+	variableEditor.SetPlaceHolder("Formula")
+	editorVariable := ""
+
+	// Create the input view
+	inputView, updateInputView := newInputView(editorVariable, variables)
 
 	// Add a button to change to edit mode
 	nameLabel := widget.NewLabel(editorVariable)
@@ -168,8 +192,7 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 			container.NewBorder(nameView, nil, nil, nil, inputView),
 			nil, nil, nil, variableEditor),
 		updateInputView: func(variableName string) {
-			updateInputSelect()
-			updateInputDisplay()
+			updateInputView(variableName)
 			editNameButton.OnTapped = updateRenameFunction(variableName, variables, parentWindow)
 		},
 		changeVariable: func(variable *formulaInfo) {
@@ -181,8 +204,7 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 			editorVariable = name
 			nameLabel.Bind(variable.name)
 			variableEditor.Bind(variable.code)
-			updateInputSelect()
-			updateInputDisplay()
+			updateInputView(name)
 		},
 	}
 }
