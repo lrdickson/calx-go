@@ -220,7 +220,7 @@ func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *e
 				variableEditor.Bind(variable.code)
 			}
 
-			// Change out the editor components
+			// This will probably change every time
 			updateInputView(name)
 		},
 	}
