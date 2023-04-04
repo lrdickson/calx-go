@@ -74,7 +74,7 @@ func RunGui() {
 		newVariable := formulaInfo{code, nameDisplay, output, make(map[string]*formulaInfo), make(map[string]*formulaInfo)}
 		displayVariables.Append(newVariable)
 		variables[name] = &newVariable
-		mainEditView.updateInputView()
+		mainEditView.updateInputView(name)
 	})
 
 	// Run variable code button
