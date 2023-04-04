@@ -1,4 +1,4 @@
-# SSGO
+# Calx
 
 Spreadsheet Alternative using Go
 

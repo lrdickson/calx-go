@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
-	"github.com/lrdickson/ssgo/internal/kernel"
+	"github.com/lrdickson/calx/internal/kernel"
 )
 
 type formulaInfo struct {
@@ -34,7 +34,7 @@ func getVariable(variables binding.UntypedList, id widget.ListItemID) formulaInf
 
 func RunGui() {
 	mainApp := app.New()
-	mainWindow := mainApp.NewWindow("SSGO")
+	mainWindow := mainApp.NewWindow("Calx")
 
 	// Create the menu
 	fileMenu := fyne.NewMenu("File")

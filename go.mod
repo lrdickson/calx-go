@@ -1,4 +1,4 @@
-module github.com/lrdickson/ssgo
+module github.com/lrdickson/calx
 
 go 1.19
 
