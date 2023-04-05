@@ -8,6 +8,8 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 	"github.com/lrdickson/calx/internal/kernel"
 )
@@ -36,8 +38,26 @@ func RunGui() {
 	mainApp := app.New()
 	mainWindow := mainApp.NewWindow("Calx")
 
-	// Create the menu
-	fileMenu := fyne.NewMenu("File")
+	// Create the open menu option
+	openItem := fyne.NewMenuItem("Open...", func() {
+		openDialog := dialog.NewFileOpen(func(f fyne.URIReadCloser, e error) {
+		}, mainWindow)
+		openDialog.SetFilter(storage.NewExtensionFileFilter([]string{".ssgo", ".ssgo.zip"}))
+		openDialog.Show()
+	})
+
+	saveItem := fyne.NewMenuItem("Save", nil)
+
+	// Create the save as menu option
+	saveAsItem := fyne.NewMenuItem("Save As...", func() {
+		saveAsDialog := dialog.NewFileSave(func(f fyne.URIWriteCloser, e error) {
+		}, mainWindow)
+		saveAsDialog.SetFilter(storage.NewExtensionFileFilter([]string{".ssgo", ".ssgo.zip"}))
+		saveAsDialog.Show()
+	})
+
+	// Put the main menu together
+	fileMenu := fyne.NewMenu("File", openItem, saveItem, saveAsItem)
 	mainMenu := fyne.NewMainMenu(fileMenu)
 	mainWindow.SetMainMenu(mainMenu)
 
