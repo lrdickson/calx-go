@@ -123,8 +123,9 @@ func RunGui() {
 	content := container.NewHSplit(
 		container.NewBorder(nil, newVariableButton, nil, nil, displayVariablesView),
 		container.NewBorder(nil, runButton, nil, nil, mainEditView.editViewContainer))
+	content.SetOffset(0.4)
 
 	mainWindow.SetContent(content)
-	mainWindow.Resize(fyne.NewSize(480, 360))
+	mainWindow.Resize(fyne.NewSize(600, 400))
 	mainWindow.ShowAndRun()
 }
