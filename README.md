@@ -2,6 +2,8 @@
 
 A data analysis tool for making distributable programs
 
+![](./screenshot.png)
+
 ## Goals
 
 - Allow users to quickly analyze data they already have
