@@ -18,6 +18,14 @@ func NewController() *Controller {
 	}
 }
 
+func (c Controller) Variables() map[string]*Variable {
+	variablesCopy := make(map[string]*Variable)
+	for key := range c.variables {
+		variablesCopy[key] = c.variables[key]
+	}
+	return variablesCopy
+}
+
 func (c *Controller) Rename(oldName, newName string) {
 	// Check if the oldName exists
 	if _, exists := c.variables[oldName]; !exists {
