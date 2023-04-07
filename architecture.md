@@ -2,9 +2,38 @@
 
 ## Controller
 
-- Core of all data being passed around
-- Event driven
+- Controls data passing
+- calls listeners to update app as needed
 - Kernel and gui listen and trigger events on the controller
+
+### Details
+
+- Variable as interface with implementations
+	- formula
+	- file
+	- network
+		- pubsub
+		- server
+			- http
+			- etc
+- Should variable be a separate package?
+- Variable access functions
+	- IterVariables
+		- takes function that returns bool
+		- true = continue
+	- GetVariable
+- Add event listeners as functions
+- Events/Functions
+	- Add
+	- Delete
+	- Rename
+	- DataUpdate
+	- Formula
+		- CodeUpdate
+- Add listener functions
+	- Listen for all variables
+	- Listen by variable name?
+		- Pairs well with delete
 
 ## Variables
 
