@@ -1,4 +1,4 @@
-package controller
+package variable
 
 type Variable interface {
 	Data() any

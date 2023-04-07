@@ -1,5 +1,11 @@
 package controller
 
+import (
+	"strconv"
+
+	"github.com/lrdickson/calx/internal/variable"
+)
+
 type Event int
 
 const (
@@ -9,21 +15,46 @@ const (
 )
 
 type Controller struct {
-	variables map[string]*Variable
+	variables     map[string]*variable.Variable
+	variableCount int
 }
 
 func NewController() *Controller {
 	return &Controller{
-		variables: make(map[string]*Variable),
+		variables: make(map[string]*variable.Variable),
 	}
 }
 
-func (c Controller) Variables() map[string]*Variable {
-	variablesCopy := make(map[string]*Variable)
-	for key := range c.variables {
-		variablesCopy[key] = c.variables[key]
+func (c Controller) IterVariables(iter func(string, *variable.Variable) bool) {
+	for key, value := range c.variables {
+		cont := iter(key, value)
+		if !cont {
+			break
+		}
 	}
-	return variablesCopy
+}
+
+func (c Controller) GetVariable(name string) *variable.Variable {
+	return c.variables[name]
+}
+
+// Generate a non taken name
+func (c *Controller) uniqueName() string {
+	name := ""
+	for {
+		name = "var" + strconv.Itoa(c.variableCount)
+		c.variableCount++
+		if _, taken := c.variables[name]; !taken {
+			break
+		}
+	}
+	return name
+}
+
+func (c *Controller) AddFormula() {
+	name := c.uniqueName()
+	var formula variable.Variable = variable.Formula{}
+	c.variables[name] = &formula
 }
 
 func (c *Controller) Rename(oldName, newName string) {
