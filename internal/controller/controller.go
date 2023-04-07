@@ -34,11 +34,10 @@ func (c Controller) IterVariables(iter func(string, *variable.Variable) bool) {
 	}
 }
 
-func (c Controller) GetVariable(name string) *variable.Variable {
+func (c Controller) Variables(name string) *variable.Variable {
 	return c.variables[name]
 }
 
-// Generate a non taken name
 func (c *Controller) uniqueName() string {
 	name := ""
 	for {

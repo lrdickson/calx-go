@@ -1,21 +1,29 @@
 # Roadmap
 
-## Next Steps
+## v0.1.0
 
-- Basic controller
+Make it any easier to write a basic command line application to parse data
+
+- Export source code for a working Go program
+- Accept inputs as command line arguments
+- Add a option
+- Print results based on input
 - Save projects
-- Ability to stop
+- Delete variables
+- Move variables around
+- Ability to stop endless loops
+
+## v0.2.0 and beyond
+
 - Display arrays
 - Add alternate variable types
 	- spreadsheet input
 	- file input?
 - Display output as available instead of all at once
+- Modify the Fyne entry widget to allow syntax highlighting
+	- Upstream contribution
 
-### Under Consideration
+## Under Consideration
 
 - start with 1 variable added and selected
 
-### Later
-
-- Modify the Fyne entry widget to allow syntax highlighting
-	- Upstream contribution
