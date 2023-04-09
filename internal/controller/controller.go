@@ -10,15 +10,15 @@ import (
 type Event int
 
 const (
-	NewEvent Event = iota
-	RenameEvent
-	DeleteEvent
+	NewVarEvent Event = iota
+	RenameVarEvent
+	DeleteVarEvent
 )
 
-var events []Event = []Event{NewEvent, RenameEvent, DeleteEvent}
+var events []Event = []Event{NewVarEvent, RenameVarEvent, DeleteVarEvent}
 
 // listeners[event][variableName]
-type listenerMap map[Event]map[string][]func()
+type listenerMap map[Event]map[string][]func(string)
 
 type Controller struct {
 	variables     map[string]*variable.Variable
@@ -30,15 +30,16 @@ func NewController() *Controller {
 	// Initialize the listeners map
 	listeners := make(listenerMap)
 	for _, event := range events {
-		listeners[event] = make(map[string][]func())
+		listeners[event] = make(map[string][]func(string))
 		// Add universal listenner
-		listeners[event]["*"] = make([]func(), 0)
+		listeners[event]["*"] = make([]func(string), 0)
 	}
 
 	// Create the controller
 	return &Controller{
-		variables: make(map[string]*variable.Variable),
-		listeners: listeners,
+		variables:     make(map[string]*variable.Variable),
+		variableCount: 1,
+		listeners:     listeners,
 	}
 }
 
@@ -67,11 +68,16 @@ func (c *Controller) uniqueName() string {
 	return name
 }
 
+func (c *Controller) AddVariable(name string, v *variable.Variable) {
+	c.variables[name] = v
+	for _, callback := range c.listeners[NewVarEvent]["*"] {
+		callback(name)
+	}
+}
+
 func (c *Controller) AddFormula() {
-	name := c.uniqueName()
 	var formula variable.Variable = variable.Formula{}
-	c.variables[name] = &formula
-	c.eventTriggered(NewEvent, "*")
+	c.AddVariable(c.uniqueName(), &formula)
 }
 
 func (c *Controller) Rename(oldName, newName string) {
@@ -85,9 +91,14 @@ func (c *Controller) Rename(oldName, newName string) {
 	c.variables[newName] = c.variables[oldName]
 	delete(c.variables, oldName)
 
+	// Update the event triggers
+	for _, event := range events {
+		c.listeners[event][newName] = c.listeners[event][oldName]
+		delete(c.listeners[event], oldName)
+	}
+
 	// Trigger the event
-	c.eventTriggered(RenameEvent, oldName)
-	c.eventTriggered(RenameEvent, "*")
+	c.eventTriggered(RenameVarEvent, newName)
 }
 
 func (c *Controller) Delete(name string) {
@@ -101,8 +112,7 @@ func (c *Controller) Delete(name string) {
 	delete(c.variables, name)
 
 	// Trigger the event
-	c.eventTriggered(RenameEvent, name)
-	c.eventTriggered(RenameEvent, "*")
+	c.eventTriggered(DeleteVarEvent, name)
 
 	// Delete the variable from the listener map
 	for _, event := range events {
@@ -110,20 +120,37 @@ func (c *Controller) Delete(name string) {
 	}
 }
 
-func (c *Controller) AddListener(event Event, variableName string, callback func()) {
+func (c *Controller) AddListener(event Event, variableName string, callback func(string)) {
 	if _, exists := c.listeners[event][variableName]; !exists {
-		c.listeners[event][variableName] = make([]func(), 0)
+		c.listeners[event][variableName] = make([]func(string), 0)
 	}
 	c.listeners[event][variableName] = append(c.listeners[event][variableName], callback)
 }
 
+//func (c *Controller) DeleteListener(event Event, variableName string, callback func(string)) {
+//callbacks, exists := c.listeners[event][variableName]
+//if !exists {
+//return
+//}
+//newCallbacks := make([]func(string), 0, len(callbacks-1))
+//callbackFound := false
+//for index, cb := range callbacks {
+//if callback == cb {
+//callbackFound = true
+//}
+//}
+
+//c.listeners[event][variableName] = append(c.listeners[event][variableName], callback)
+//}
+
 func (c Controller) eventTriggered(event Event, variableName string) {
 	callbacks, exists := c.listeners[event][variableName]
-	if !exists {
-		log.Println("Error: attempt to trigger an event for a variable that doesn't exist:", variableName)
-		return
+	if exists {
+		for _, callback := range callbacks {
+			callback(variableName)
+		}
 	}
-	for _, callback := range callbacks {
-		callback()
+	for _, callback := range c.listeners[event]["*"] {
+		callback(variableName)
 	}
 }
