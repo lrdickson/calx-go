@@ -17,22 +17,25 @@ const (
 
 var events []Event = []Event{NewVarEvent, RenameVarEvent, DeleteVarEvent}
 
-// listeners[event][variableName]
-type listenerMap map[Event]map[string][]func(string)
+type ListenerId int64
+
+// listeners[event][variableName][listenerId]
+type listenerMap map[Event]map[string]map[ListenerId]func(string)
 
 type Controller struct {
 	variables     map[string]*variable.Variable
-	variableCount int
+	variableCount uint64
 	listeners     listenerMap
+	listenerCount ListenerId
 }
 
 func NewController() *Controller {
 	// Initialize the listeners map
 	listeners := make(listenerMap)
 	for _, event := range events {
-		listeners[event] = make(map[string][]func(string))
+		listeners[event] = make(map[string]map[ListenerId]func(string))
 		// Add universal listenner
-		listeners[event]["*"] = make([]func(string), 0)
+		listeners[event]["*"] = make(map[ListenerId]func(string))
 	}
 
 	// Create the controller
@@ -40,6 +43,7 @@ func NewController() *Controller {
 		variables:     make(map[string]*variable.Variable),
 		variableCount: 1,
 		listeners:     listeners,
+		listenerCount: 1,
 	}
 }
 
@@ -59,7 +63,7 @@ func (c Controller) Variables(name string) *variable.Variable {
 func (c *Controller) uniqueName() string {
 	name := ""
 	for {
-		name = "var" + strconv.Itoa(c.variableCount)
+		name = "var" + strconv.FormatUint(c.variableCount, 10)
 		c.variableCount++
 		if _, taken := c.variables[name]; !taken {
 			break
@@ -120,28 +124,25 @@ func (c *Controller) Delete(name string) {
 	}
 }
 
-func (c *Controller) AddListener(event Event, variableName string, callback func(string)) {
+func (c *Controller) AddListener(event Event, variableName string, callback func(string)) ListenerId {
 	if _, exists := c.listeners[event][variableName]; !exists {
-		c.listeners[event][variableName] = make([]func(string), 0)
+		c.listeners[event][variableName] = make(map[ListenerId]func(string))
 	}
-	c.listeners[event][variableName] = append(c.listeners[event][variableName], callback)
+	listenerId := c.listenerCount
+	c.listeners[event][variableName][listenerId] = callback
+	c.listenerCount++
+	return listenerId
 }
 
-//func (c *Controller) DeleteListener(event Event, variableName string, callback func(string)) {
-//callbacks, exists := c.listeners[event][variableName]
-//if !exists {
-//return
-//}
-//newCallbacks := make([]func(string), 0, len(callbacks-1))
-//callbackFound := false
-//for index, cb := range callbacks {
-//if callback == cb {
-//callbackFound = true
-//}
-//}
-
-//c.listeners[event][variableName] = append(c.listeners[event][variableName], callback)
-//}
+func (c *Controller) DeleteListener(event Event, variableName string, listenerId ListenerId) {
+	if _, exists := c.listeners[event][variableName]; !exists {
+		return
+	}
+	if _, exists := c.listeners[event][variableName][listenerId]; !exists {
+		return
+	}
+	delete(c.listeners[event][variableName], listenerId)
+}
 
 func (c Controller) eventTriggered(event Event, variableName string) {
 	callbacks, exists := c.listeners[event][variableName]
