@@ -7,12 +7,12 @@ import (
 	"github.com/lrdickson/calx/internal/variable"
 )
 
-type Event int
+type Event string
 
 const (
-	NewVarEvent Event = iota
-	RenameVarEvent
-	DeleteVarEvent
+	NewVarEvent    Event = "NewVar"
+	RenameVarEvent Event = "RenameVar"
+	DeleteVarEvent Event = "DeleteVar"
 )
 
 var events []Event = []Event{NewVarEvent, RenameVarEvent, DeleteVarEvent}
@@ -30,21 +30,31 @@ type Controller struct {
 }
 
 func NewController() *Controller {
+	// Make the new controller
+	controller := &Controller{
+		variables:     make(map[string]*variable.Variable),
+		variableCount: 1,
+		listeners:     make(listenerMap),
+		listenerCount: 1,
+	}
+
 	// Initialize the listeners map
-	listeners := make(listenerMap)
 	for _, event := range events {
-		listeners[event] = make(map[string]map[ListenerId]func(string))
-		// Add universal listenner
-		listeners[event]["*"] = make(map[ListenerId]func(string))
+		controller.AddEvent(event)
 	}
 
 	// Create the controller
-	return &Controller{
-		variables:     make(map[string]*variable.Variable),
-		variableCount: 1,
-		listeners:     listeners,
-		listenerCount: 1,
+	return controller
+}
+
+func (c *Controller) AddEvent(event Event) {
+	if _, exists := c.listeners[event]; exists {
+		log.Println("Error: event", event, "already exists!")
+		return
 	}
+	c.listeners[event] = make(map[string]map[ListenerId]func(string))
+	// Add universal listenner
+	c.listeners[event]["*"] = make(map[ListenerId]func(string))
 }
 
 func (c Controller) IterVariables(iter func(string, *variable.Variable) bool) {
@@ -60,12 +70,13 @@ func (c Controller) Variables(name string) *variable.Variable {
 	return c.variables[name]
 }
 
-func (c *Controller) uniqueName() string {
+func (c *Controller) UniqueName() string {
 	name := ""
 	for {
 		name = "var" + strconv.FormatUint(c.variableCount, 10)
-		c.variableCount++
-		if _, taken := c.variables[name]; !taken {
+		if _, taken := c.variables[name]; taken {
+			c.variableCount++
+		} else {
 			break
 		}
 	}
@@ -81,7 +92,7 @@ func (c *Controller) AddVariable(name string, v *variable.Variable) {
 
 func (c *Controller) AddFormula() {
 	var formula variable.Variable = variable.Formula{}
-	c.AddVariable(c.uniqueName(), &formula)
+	c.AddVariable(c.UniqueName(), &formula)
 }
 
 func (c *Controller) Rename(oldName, newName string) {
@@ -102,7 +113,7 @@ func (c *Controller) Rename(oldName, newName string) {
 	}
 
 	// Trigger the event
-	c.eventTriggered(RenameVarEvent, newName)
+	c.EventTriggered(RenameVarEvent, newName)
 }
 
 func (c *Controller) Delete(name string) {
@@ -116,7 +127,7 @@ func (c *Controller) Delete(name string) {
 	delete(c.variables, name)
 
 	// Trigger the event
-	c.eventTriggered(DeleteVarEvent, name)
+	c.EventTriggered(DeleteVarEvent, name)
 
 	// Delete the variable from the listener map
 	for _, event := range events {
@@ -144,7 +155,11 @@ func (c *Controller) DeleteListener(event Event, variableName string, listenerId
 	delete(c.listeners[event][variableName], listenerId)
 }
 
-func (c Controller) eventTriggered(event Event, variableName string) {
+func (c Controller) EventTriggered(event Event, variableName string) {
+	if _, exists := c.listeners[event]; !exists {
+		log.Println("Error: event", event, "does not exist!")
+		return
+	}
 	callbacks, exists := c.listeners[event][variableName]
 	if exists {
 		for _, callback := range callbacks {
