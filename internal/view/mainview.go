@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lrdickson/calx/internal/controller"
 	"github.com/lrdickson/calx/internal/kernel"
 )
 
@@ -37,6 +38,7 @@ func getVariable(variables binding.UntypedList, id widget.ListItemID) formulaInf
 func RunGui() {
 	mainApp := app.New()
 	mainWindow := mainApp.NewWindow("Calx")
+	control := controller.NewController()
 
 	// Create the open menu option
 	openItem := fyne.NewMenuItem("Open...", func() {

@@ -27,7 +27,7 @@ func TestAddDeleteVar(t *testing.T) {
 	})
 
 	// Check for a successful add
-	c.AddFormula()
+	AddFormula(c)
 	if name == "" {
 		t.Fatal("Name reciever is still empty")
 	}
@@ -49,7 +49,7 @@ func TestRenameVar(t *testing.T) {
 	c.AddListener(NewVarEvent, "*", func(variableName string) {
 		name = variableName
 	})
-	c.AddFormula()
+	AddFormula(c)
 
 	// Rename the variable
 	newName := "NewName"

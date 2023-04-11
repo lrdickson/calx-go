@@ -3,13 +3,14 @@ package view
 import (
 	"errors"
 	"log"
-	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lrdickson/calx/internal/controller"
+	"github.com/lrdickson/calx/internal/variable"
 	"golang.org/x/exp/slices"
 )
 
@@ -32,24 +33,8 @@ func updateRenameFunction(editorVariable string, variables map[string]*formulaIn
 				return errors.New(input + " is already taken")
 			}
 
-			// Check for valid characters
-			letters := `ABCDEFGHIJKLMNOPQRSTUVWXYZ`
-			letters += `abcdefghijklmnopqrstuvwxyz`
-			validCharacters := letters
-			validCharacters += `0123456789`
-			validCharacters += `_`
-			for index, character := range input {
-				characterString := string(character)
-				if index == 1 && !strings.Contains(letters, characterString) {
-					log.Println("Invalid variable name")
-					return errors.New(`"` + characterString + "\" is not a valid 1st character")
-				}
-				if !strings.Contains(validCharacters, characterString) {
-					log.Println("Invalid variable name")
-					return errors.New(`"` + characterString + "\" is not a valid character")
-				}
-			}
-			return nil
+			// Check if the name is valid
+			return variable.NameValid(input)
 		}
 		nameItem := &widget.FormItem{
 			Widget: nameEditor,
@@ -82,7 +67,7 @@ func updateRenameFunction(editorVariable string, variables map[string]*formulaIn
 	}
 }
 
-func newInputView(editorVariable string, variables map[string]*formulaInfo) (*fyne.Container, func(string)) {
+func newInputView(editorVariable string, control *controller.Controller) (*fyne.Container, func(string)) {
 	// Formula inputs selection
 	selectedInput := ""
 	inputVariableSelect := widget.NewSelect([]string{}, func(s string) {
@@ -90,12 +75,13 @@ func newInputView(editorVariable string, variables map[string]*formulaInfo) (*fy
 		log.Println("Selected input:", selectedInput)
 	})
 	updateInputSelect := func(editorVariable string) {
-		variableSelectList := make([]string, 0, len(variables))
-		for name := range variables {
+		variableSelectList := make([]string, 0, control.VariableCount())
+		control.IterVariables(func(name string, v *variable.Variable) bool {
 			if name != editorVariable {
 				variableSelectList = append(variableSelectList, name)
 			}
-		}
+			return true
+		})
 		inputVariableSelect.Options = variableSelectList
 		if !slices.Contains(variableSelectList, inputVariableSelect.Selected) {
 			inputVariableSelect.ClearSelected()
@@ -108,23 +94,23 @@ func newInputView(editorVariable string, variables map[string]*formulaInfo) (*fy
 	var updateInputDisplay func(editorVariable string)
 	updateInputDisplay = func(editorVariable string) {
 		log.Println("Updating input display for:", editorVariable)
-		if _, exists := variables[editorVariable]; !exists {
+		if v := control.Variables(editorVariable); v == nil {
 			return
 		}
-		if len(variables[editorVariable].dependencies) == 0 {
+		if len(control.Variables(editorVariable).dependencies) == 0 {
 			inputDisplay.Hide()
 			return
 		}
 
 		// Create a list of buttons to display
-		inputArray := make([]fyne.CanvasObject, 0, len(variables[editorVariable].dependencies))
-		for inputVariable := range variables[editorVariable].dependencies {
+		inputArray := make([]fyne.CanvasObject, 0, len(control.Variables(editorVariable).dependencies))
+		for inputVariable := range control.Variables(editorVariable).dependencies {
 			log.Printf("Adding %s to input display\n", inputVariable)
 
 			// Make a copy so that the variable being deleted does change as the value of inputVariable changes
 			buttonVariable := inputVariable
 			inputArray = append(inputArray, widget.NewButton(inputVariable+" X", func() {
-				delete(variables[editorVariable].dependencies, buttonVariable)
+				delete(control.Variables(editorVariable).dependencies, buttonVariable)
 				updateInputDisplay(editorVariable)
 			}))
 		}
@@ -174,14 +160,14 @@ func updateDeleteFunction() func() {
 	return func() {}
 }
 
-func newEditView(variables map[string]*formulaInfo, parentWindow fyne.Window) *editView {
+func newEditView(control *controller.Controller, parentWindow fyne.Window) *editView {
 	// Create the editor
 	variableEditor := widget.NewMultiLineEntry()
 	variableEditor.SetPlaceHolder("Formula")
 	editorVariable := ""
 
 	// Create the input view
-	inputView, updateInputView := newInputView(editorVariable, variables)
+	inputView, updateInputView := newInputView(editorVariable, control)
 
 	// Add the delete button
 	deleteButton := widget.NewButton("Delete", nil)

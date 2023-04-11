@@ -3,8 +3,6 @@ package controller
 import (
 	"log"
 	"strconv"
-
-	"github.com/lrdickson/calx/internal/variable"
 )
 
 type Event string
@@ -23,7 +21,7 @@ type ListenerId int64
 type listenerMap map[Event]map[string]map[ListenerId]func(string)
 
 type Controller struct {
-	variables     map[string]*variable.Variable
+	variables     map[string]*Variable
 	variableCount uint64
 	listeners     listenerMap
 	listenerCount ListenerId
@@ -32,7 +30,7 @@ type Controller struct {
 func NewController() *Controller {
 	// Make the new controller
 	controller := &Controller{
-		variables:     make(map[string]*variable.Variable),
+		variables:     make(map[string]*Variable),
 		variableCount: 1,
 		listeners:     make(listenerMap),
 		listenerCount: 1,
@@ -57,7 +55,7 @@ func (c *Controller) AddEvent(event Event) {
 	c.listeners[event]["*"] = make(map[ListenerId]func(string))
 }
 
-func (c Controller) IterVariables(iter func(string, *variable.Variable) bool) {
+func (c Controller) IterVariables(iter func(string, *Variable) bool) {
 	for key, value := range c.variables {
 		cont := iter(key, value)
 		if !cont {
@@ -66,8 +64,12 @@ func (c Controller) IterVariables(iter func(string, *variable.Variable) bool) {
 	}
 }
 
-func (c Controller) Variables(name string) *variable.Variable {
+func (c Controller) Variables(name string) *Variable {
 	return c.variables[name]
+}
+
+func (c Controller) VariableCount() int {
+	return len(c.variables)
 }
 
 func (c *Controller) UniqueName() string {
@@ -83,16 +85,11 @@ func (c *Controller) UniqueName() string {
 	return name
 }
 
-func (c *Controller) AddVariable(name string, v *variable.Variable) {
+func (c *Controller) AddVariable(name string, v *Variable) {
 	c.variables[name] = v
 	for _, callback := range c.listeners[NewVarEvent]["*"] {
 		callback(name)
 	}
-}
-
-func (c *Controller) AddFormula() {
-	var formula variable.Variable = variable.Formula{}
-	c.AddVariable(c.UniqueName(), &formula)
 }
 
 func (c *Controller) Rename(oldName, newName string) {
@@ -123,13 +120,12 @@ func (c *Controller) Delete(name string) {
 		return
 	}
 
-	// Update the variable map
+	// Delete the variable
+	(*c.variables[name]).Close()
 	delete(c.variables, name)
 
-	// Trigger the event
+	// Run the event
 	c.EventTriggered(DeleteVarEvent, name)
-
-	// Delete the variable from the listener map
 	for _, event := range events {
 		delete(c.listeners[event], name)
 	}
