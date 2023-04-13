@@ -2,6 +2,11 @@ package controller
 
 import "testing"
 
+func AddBaseObject(c *Controller) {
+	var obj Object = &BaseObject{}
+	AddObject(c, c.UniqueName(), &obj)
+}
+
 func TestAddDeleteListener(t *testing.T) {
 	// Test successful listener add
 	c := NewController()
@@ -27,7 +32,7 @@ func TestAddDeleteVar(t *testing.T) {
 	})
 
 	// Check for a successful add
-	AddFormula(c)
+	AddBaseObject(c)
 	if name == "" {
 		t.Fatal("Name reciever is still empty")
 	}
@@ -49,7 +54,7 @@ func TestRenameVar(t *testing.T) {
 	c.AddListener(NewVarEvent, "*", func(variableName string) {
 		name = variableName
 	})
-	AddFormula(c)
+	AddBaseObject(c)
 
 	// Rename the variable
 	newName := "NewName"

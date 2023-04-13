@@ -16,24 +16,29 @@ const (
 var events []Event = []Event{NewVarEvent, RenameVarEvent, DeleteVarEvent}
 
 type ListenerId int64
+type ObjectId int64
 
 // listeners[event][variableName][listenerId]
-type listenerMap map[Event]map[string]map[ListenerId]func(string)
+type listenerMap map[Event]map[ObjectId]map[ListenerId]func(string)
 
 type Controller struct {
-	variables     map[string]*Variable
-	variableCount uint64
-	listeners     listenerMap
-	listenerCount ListenerId
+	objects         map[ObjectId]*Object
+	objectIdCount   ObjectId
+	objectNames     map[string]ObjectId
+	objectNameCount uint64
+	listeners       listenerMap
+	listenerIdCount ListenerId
 }
 
 func NewController() *Controller {
 	// Make the new controller
 	controller := &Controller{
-		variables:     make(map[string]*Variable),
-		variableCount: 1,
-		listeners:     make(listenerMap),
-		listenerCount: 1,
+		objects:         make(map[ObjectId]*Object),
+		objectIdCount:   1,
+		objectNames:     make(map[string]ObjectId),
+		objectNameCount: 1,
+		listeners:       make(listenerMap),
+		listenerIdCount: 1,
 	}
 
 	// Initialize the listeners map
@@ -46,17 +51,22 @@ func NewController() *Controller {
 }
 
 func (c *Controller) AddEvent(event Event) {
+	// Add the event
 	if _, exists := c.listeners[event]; exists {
 		log.Println("Error: event", event, "already exists!")
 		return
 	}
-	c.listeners[event] = make(map[string]map[ListenerId]func(string))
-	// Add universal listenner
-	c.listeners[event]["*"] = make(map[ListenerId]func(string))
+	c.listeners[event] = make(map[ObjectId]map[ListenerId]func(string))
+
+	// Add universal listener
+	universalName := "*"
+	c.objectNames[universalName] = c.objectIdCount
+	c.listeners[event][c.objectIdCount] = make(map[ListenerId]func(string))
+	c.objectIdCount++
 }
 
-func (c Controller) IterVariables(iter func(string, *Variable) bool) {
-	for key, value := range c.variables {
+func (c Controller) IterVariables(iter func(ObjectId, *Object) bool) {
+	for key, value := range c.objects {
 		cont := iter(key, value)
 		if !cont {
 			break
@@ -64,20 +74,20 @@ func (c Controller) IterVariables(iter func(string, *Variable) bool) {
 	}
 }
 
-func (c Controller) Variables(name string) *Variable {
-	return c.variables[name]
+func (c Controller) Variables(id ObjectId) *Object {
+	return c.objects[id]
 }
 
 func (c Controller) VariableCount() int {
-	return len(c.variables)
+	return len(c.objects)
 }
 
 func (c *Controller) UniqueName() string {
 	name := ""
 	for {
-		name = "var" + strconv.FormatUint(c.variableCount, 10)
-		if _, taken := c.variables[name]; taken {
-			c.variableCount++
+		name = "obj" + strconv.FormatUint(c.objectNameCount, 10)
+		if _, taken := c.objectNames[name]; taken {
+			c.objectIdCount++
 		} else {
 			break
 		}
@@ -85,29 +95,28 @@ func (c *Controller) UniqueName() string {
 	return name
 }
 
-func (c *Controller) AddVariable(name string, v *Variable) {
-	c.variables[name] = v
-	for _, callback := range c.listeners[NewVarEvent]["*"] {
+func (c *Controller) AddObject(name string, obj *Object) {
+	// Add the object to the map
+	c.objects[c.objectIdCount] = obj
+	c.objectNames[name] = c.objectIdCount
+	c.objectIdCount++
+
+	// Trigger the callback
+	for _, callback := range c.listeners[NewVarEvent][c.objectNames["*"]] {
 		callback(name)
 	}
 }
 
 func (c *Controller) Rename(oldName, newName string) {
 	// Check if the oldName exists
-	if _, exists := c.variables[oldName]; !exists {
+	if _, exists := c.objectNames[oldName]; !exists {
 		log.Println("Error: attempt to rename a variable that doesn't exist:", oldName)
 		return
 	}
 
 	// Update the variable map
-	c.variables[newName] = c.variables[oldName]
-	delete(c.variables, oldName)
-
-	// Update the event triggers
-	for _, event := range events {
-		c.listeners[event][newName] = c.listeners[event][oldName]
-		delete(c.listeners[event], oldName)
-	}
+	c.objectNames[newName] = c.objectNames[oldName]
+	delete(c.objectNames, oldName)
 
 	// Trigger the event
 	c.EventTriggered(RenameVarEvent, newName)
@@ -115,14 +124,14 @@ func (c *Controller) Rename(oldName, newName string) {
 
 func (c *Controller) Delete(name string) {
 	// Check if the variable exists
-	if _, exists := c.variables[name]; !exists {
+	if _, exists := c.objects[name]; !exists {
 		log.Println("Error: attempt to delete a variable that doesn't exist:", name)
 		return
 	}
 
 	// Delete the variable
-	(*c.variables[name]).Close()
-	delete(c.variables, name)
+	(*c.objects[name]).Close()
+	delete(c.objects, name)
 
 	// Run the event
 	c.EventTriggered(DeleteVarEvent, name)
@@ -135,9 +144,9 @@ func (c *Controller) AddListener(event Event, variableName string, callback func
 	if _, exists := c.listeners[event][variableName]; !exists {
 		c.listeners[event][variableName] = make(map[ListenerId]func(string))
 	}
-	listenerId := c.listenerCount
+	listenerId := c.listenerIdCount
 	c.listeners[event][variableName][listenerId] = callback
-	c.listenerCount++
+	c.listenerIdCount++
 	return listenerId
 }
 

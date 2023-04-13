@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-type Variable interface {
-	Data() any
+type Object interface {
+	Name() string
 	Close()
 }
 

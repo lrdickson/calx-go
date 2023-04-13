@@ -1,11 +1,9 @@
 package controller
 
-type BaseVariable struct {
-	data any
+type BaseObject struct {
+	name string
 }
 
-func (v *BaseVariable) Data() any {
-	return v.data
-}
+func (b *BaseObject) Close() {}
 
-func (v *BaseVariable) Close() {}
+func (b *BaseObject) Name() string { return b.name }
