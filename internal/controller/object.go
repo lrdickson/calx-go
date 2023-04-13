@@ -7,7 +7,6 @@ import (
 )
 
 type Object interface {
-	Name() string
 	Close()
 }
 
@@ -30,4 +29,8 @@ func NameValid(input string) error {
 		}
 	}
 	return nil
+}
+
+type Consumer interface {
+	Eval(map[string]any)
 }

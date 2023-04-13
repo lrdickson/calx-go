@@ -36,13 +36,13 @@ func TestAddDeleteVar(t *testing.T) {
 	if name == "" {
 		t.Fatal("Name reciever is still empty")
 	}
-	if _, exists := c.variables[name]; !exists {
+	if _, exists := c.objects[name]; !exists {
 		t.Fatal(name, "not in variables")
 	}
 
 	// Check for a successful delete
 	c.Delete(name)
-	if _, exists := c.variables[name]; exists {
+	if _, exists := c.objects[name]; exists {
 		t.Fatal(name, "still in variables after delete")
 	}
 }
@@ -61,7 +61,7 @@ func TestRenameVar(t *testing.T) {
 	c.Rename(name, newName)
 
 	// Check the result
-	if _, exists := c.variables[newName]; !exists {
+	if _, exists := c.objects[newName]; !exists {
 		t.Fatal(newName, "not in variables")
 	}
 }
