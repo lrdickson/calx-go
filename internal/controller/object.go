@@ -34,3 +34,7 @@ func NameValid(input string) error {
 type Consumer interface {
 	Eval(map[string]any)
 }
+
+type Producer interface {
+	Output() any
+}

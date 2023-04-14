@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"strconv"
 )
@@ -18,27 +20,49 @@ var events []Event = []Event{NewVarEvent, RenameVarEvent, DeleteVarEvent}
 type ListenerId int64
 type ObjectId int64
 
-// listeners[event][variableName][listenerId]
-type listenerMap map[Event]map[ObjectId]map[ListenerId]func(string)
+type ObjectHolder struct {
+	object       *Object
+	dependencies map[*ObjectHolder]bool
+	dependents   map[*ObjectHolder]bool
+	controller   *Controller
+	name         string
+}
+
+func (o *ObjectHolder) Name() string {
+	return o.name
+}
+
+func (o *ObjectHolder) SetName(name string) error {
+	// Make sure the name is unique
+	if _, exists := o.controller.objectNames[name]; exists {
+		return fmt.Errorf("The name %s is taken", name)
+	}
+	o.controller.objectNames[name] = o
+	delete(o.controller.objectNames, o.name)
+
+	// Record the name
+	o.name = name
+
+	// Success
+	return nil
+}
+
+type Listener *func(*ObjectHolder)
+type listenerMap map[Event]map[*ObjectHolder]map[Listener]bool
 
 type Controller struct {
-	objects         map[ObjectId]*Object
-	objectIdCount   ObjectId
-	objectNames     map[string]ObjectId
-	objectNameCount uint64
+	objects         map[*ObjectHolder]bool
+	objectNames     map[string]*ObjectHolder
 	listeners       listenerMap
-	listenerIdCount ListenerId
+	globalListeners map[Event]map[Listener]bool
 }
 
 func NewController() *Controller {
 	// Make the new controller
 	controller := &Controller{
-		objects:         make(map[ObjectId]*Object),
-		objectIdCount:   1,
-		objectNames:     make(map[string]ObjectId),
-		objectNameCount: 1,
-		listeners:       make(listenerMap),
-		listenerIdCount: 1,
+		objects:     make(map[*ObjectHolder]bool),
+		objectNames: make(map[string]*ObjectHolder),
+		listeners:   make(listenerMap),
 	}
 
 	// Initialize the listeners map
@@ -51,31 +75,24 @@ func NewController() *Controller {
 }
 
 func (c *Controller) AddEvent(event Event) {
-	// Add the event
+	// Prevent duplicate listener maps
 	if _, exists := c.listeners[event]; exists {
 		log.Println("Error: event", event, "already exists!")
 		return
 	}
-	c.listeners[event] = make(map[ObjectId]map[ListenerId]func(string))
 
-	// Add universal listener
-	universalName := "*"
-	c.objectNames[universalName] = c.objectIdCount
-	c.listeners[event][c.objectIdCount] = make(map[ListenerId]func(string))
-	c.objectIdCount++
+	// Add the event to the listener maps
+	c.listeners[event] = make(map[*ObjectHolder]map[Listener]bool)
+	c.globalListeners[event] = make(map[Listener]bool)
 }
 
-func (c Controller) IterVariables(iter func(ObjectId, *Object) bool) {
-	for key, value := range c.objects {
-		cont := iter(key, value)
+func (c Controller) IterVariables(iter func(*ObjectHolder) bool) {
+	for key := range c.objects {
+		cont := iter(key)
 		if !cont {
 			break
 		}
 	}
-}
-
-func (c Controller) Variables(id ObjectId) *Object {
-	return c.objects[id]
 }
 
 func (c Controller) VariableCount() int {
@@ -84,10 +101,11 @@ func (c Controller) VariableCount() int {
 
 func (c *Controller) UniqueName() string {
 	name := ""
+	objectNameCount := 1
 	for {
-		name = "obj" + strconv.FormatUint(c.objectNameCount, 10)
+		name = "obj" + strconv.Itoa(objectNameCount)
 		if _, taken := c.objectNames[name]; taken {
-			c.objectIdCount++
+			objectNameCount++
 		} else {
 			break
 		}
@@ -95,7 +113,14 @@ func (c *Controller) UniqueName() string {
 	return name
 }
 
-func (c *Controller) AddObject(name string, obj *Object) {
+func (c *Controller) AddObject(name string, obj *Object) error {
+	// Make sure the object can do something
+	_, isProducer := (*obj).(Producer)
+	_, isConsumer := (*obj).(Consumer)
+	if !isProducer && !isConsumer {
+		return errors.New("Provided object is neither a producer nor a consumer")
+	}
+
 	// Add the object to the map
 	c.objects[c.objectIdCount] = obj
 	c.objectNames[name] = c.objectIdCount
@@ -105,6 +130,7 @@ func (c *Controller) AddObject(name string, obj *Object) {
 	for _, callback := range c.listeners[NewVarEvent][c.objectNames["*"]] {
 		callback(name)
 	}
+	return nil
 }
 
 func (c *Controller) Rename(oldName, newName string) {
