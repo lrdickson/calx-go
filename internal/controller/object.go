@@ -2,13 +2,10 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 )
-
-type Object interface {
-	Close()
-}
 
 func NameValid(input string) error {
 	// Check for valid characters
@@ -31,10 +28,50 @@ func NameValid(input string) error {
 	return nil
 }
 
-type Consumer interface {
-	Eval(map[string]any)
+type Object interface {
+	Close() error
 }
 
+type Consumer interface {
+	Object
+	Consume(any) error
+}
+
+type BaseObject struct {
+}
+
+func (b *BaseObject) Close() error { return nil }
+
 type Producer interface {
-	Output() any
+	Object
+	SetReady(func())
+	Produce() (any, error)
+}
+
+type ObjectHolder struct {
+	object       *Object
+	dependencies []*ObjectHolder
+	dependents   []*ObjectHolder
+	controller   *Controller
+	name         string
+}
+
+func (o *ObjectHolder) Name() string {
+	return o.name
+}
+
+func (o *ObjectHolder) SetName(name string) error {
+	// Make sure the name is unique
+	if _, exists := o.controller.objectNames[name]; exists {
+		return fmt.Errorf("The name %s is taken", name)
+	}
+	o.controller.objectNames[name] = o
+	delete(o.controller.objectNames, o.name)
+
+	// Update the name
+	o.name = name
+	o.controller.EventTriggered(RenameObjectEvent, o)
+
+	// Success
+	return nil
 }

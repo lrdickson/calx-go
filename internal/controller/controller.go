@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"errors"
-	"fmt"
 	"log"
 	"strconv"
 )
@@ -10,42 +8,12 @@ import (
 type Event string
 
 const (
-	NewVarEvent    Event = "NewVar"
-	RenameVarEvent Event = "RenameVar"
-	DeleteVarEvent Event = "DeleteVar"
+	NewObjectEvent    Event = "NewObject"
+	RenameObjectEvent Event = "RenameObject"
+	DeleteObjectEvent Event = "DeleteObject"
 )
 
-var events []Event = []Event{NewVarEvent, RenameVarEvent, DeleteVarEvent}
-
-type ListenerId int64
-type ObjectId int64
-
-type ObjectHolder struct {
-	object       *Object
-	dependencies map[*ObjectHolder]bool
-	dependents   map[*ObjectHolder]bool
-	controller   *Controller
-	name         string
-}
-
-func (o *ObjectHolder) Name() string {
-	return o.name
-}
-
-func (o *ObjectHolder) SetName(name string) error {
-	// Make sure the name is unique
-	if _, exists := o.controller.objectNames[name]; exists {
-		return fmt.Errorf("The name %s is taken", name)
-	}
-	o.controller.objectNames[name] = o
-	delete(o.controller.objectNames, o.name)
-
-	// Record the name
-	o.name = name
-
-	// Success
-	return nil
-}
+var events []Event = []Event{NewObjectEvent, RenameObjectEvent, DeleteObjectEvent}
 
 type Listener *func(*ObjectHolder)
 type listenerMap map[Event]map[*ObjectHolder]map[Listener]bool
@@ -60,9 +28,10 @@ type Controller struct {
 func NewController() *Controller {
 	// Make the new controller
 	controller := &Controller{
-		objects:     make(map[*ObjectHolder]bool),
-		objectNames: make(map[string]*ObjectHolder),
-		listeners:   make(listenerMap),
+		objects:         make(map[*ObjectHolder]bool),
+		objectNames:     make(map[string]*ObjectHolder),
+		listeners:       make(listenerMap),
+		globalListeners: make(map[Event]map[Listener]bool),
 	}
 
 	// Initialize the listeners map
@@ -113,91 +82,92 @@ func (c *Controller) UniqueName() string {
 	return name
 }
 
-func (c *Controller) AddObject(name string, obj *Object) error {
-	// Make sure the object can do something
+func (c *Controller) NewObject(name string, obj *Object) *ObjectHolder {
+	// Create the object holder
+	holder := &ObjectHolder{object: obj, name: name, controller: c}
 	_, isProducer := (*obj).(Producer)
+	if isProducer {
+		holder.dependencies = make([]*ObjectHolder, 0)
+	}
 	_, isConsumer := (*obj).(Consumer)
-	if !isProducer && !isConsumer {
-		return errors.New("Provided object is neither a producer nor a consumer")
+	if isConsumer {
+		holder.dependents = make([]*ObjectHolder, 0)
 	}
 
 	// Add the object to the map
-	c.objects[c.objectIdCount] = obj
-	c.objectNames[name] = c.objectIdCount
-	c.objectIdCount++
+	c.objects[holder] = true
+	c.objectNames[name] = holder
 
 	// Trigger the callback
-	for _, callback := range c.listeners[NewVarEvent][c.objectNames["*"]] {
-		callback(name)
+	for callback := range c.globalListeners[NewObjectEvent] {
+		(*callback)(holder)
 	}
-	return nil
+	return holder
 }
 
-func (c *Controller) Rename(oldName, newName string) {
-	// Check if the oldName exists
-	if _, exists := c.objectNames[oldName]; !exists {
-		log.Println("Error: attempt to rename a variable that doesn't exist:", oldName)
-		return
+func (c *Controller) RemoveObject(holder *ObjectHolder) {
+	(*holder.object).Close()
+
+	// Remove object from the maps
+	if _, exists := c.objectNames[holder.Name()]; exists {
+		delete(c.objectNames, holder.Name())
 	}
-
-	// Update the variable map
-	c.objectNames[newName] = c.objectNames[oldName]
-	delete(c.objectNames, oldName)
-
-	// Trigger the event
-	c.EventTriggered(RenameVarEvent, newName)
-}
-
-func (c *Controller) Delete(name string) {
-	// Check if the variable exists
-	if _, exists := c.objects[name]; !exists {
-		log.Println("Error: attempt to delete a variable that doesn't exist:", name)
-		return
+	if _, exists := c.objects[holder]; exists {
+		delete(c.objects, holder)
 	}
-
-	// Delete the variable
-	(*c.objects[name]).Close()
-	delete(c.objects, name)
 
 	// Run the event
-	c.EventTriggered(DeleteVarEvent, name)
+	c.EventTriggered(DeleteObjectEvent, holder)
 	for _, event := range events {
-		delete(c.listeners[event], name)
+		delete(c.listeners[event], holder)
 	}
 }
 
-func (c *Controller) AddListener(event Event, variableName string, callback func(string)) ListenerId {
-	if _, exists := c.listeners[event][variableName]; !exists {
-		c.listeners[event][variableName] = make(map[ListenerId]func(string))
-	}
-	listenerId := c.listenerIdCount
-	c.listeners[event][variableName][listenerId] = callback
-	c.listenerIdCount++
-	return listenerId
-}
-
-func (c *Controller) DeleteListener(event Event, variableName string, listenerId ListenerId) {
-	if _, exists := c.listeners[event][variableName]; !exists {
+func (c *Controller) AddListener(event Event, holder *ObjectHolder, callback *func(*ObjectHolder)) {
+	if _, exists := c.listeners[event]; !exists {
+		// Should I just add the event?
 		return
 	}
-	if _, exists := c.listeners[event][variableName][listenerId]; !exists {
-		return
+	if _, exists := c.listeners[event][holder]; !exists {
+		c.listeners[event][holder] = make(map[Listener]bool)
 	}
-	delete(c.listeners[event][variableName], listenerId)
+	if !c.listeners[event][holder][callback] {
+		c.listeners[event][holder][callback] = true
+	}
 }
 
-func (c Controller) EventTriggered(event Event, variableName string) {
+func (c *Controller) AddGlobalListener(event Event, callback *func(*ObjectHolder)) {
+	if _, exists := c.globalListeners[event]; !exists {
+		// Should I just add the event?
+		return
+	}
+	if !c.globalListeners[event][callback] {
+		c.globalListeners[event][callback] = true
+	}
+}
+
+func (c *Controller) DeleteListener(event Event, holder *ObjectHolder, callback *func(*ObjectHolder)) {
+	if _, exists := c.listeners[event][holder]; !exists {
+		return
+	}
+	if _, exists := c.listeners[event][holder][callback]; !exists {
+		return
+	}
+	delete(c.listeners[event][holder], callback)
+}
+
+func (c Controller) EventTriggered(event Event, holder *ObjectHolder) {
 	if _, exists := c.listeners[event]; !exists {
 		log.Println("Error: event", event, "does not exist!")
 		return
 	}
-	callbacks, exists := c.listeners[event][variableName]
+	callbacks, exists := c.listeners[event][holder]
 	if exists {
-		for _, callback := range callbacks {
-			callback(variableName)
+		for callback := range callbacks {
+			(*callback)(holder)
 		}
 	}
-	for _, callback := range c.listeners[event]["*"] {
-		callback(variableName)
+	for callback := range c.globalListeners[event] {
+		(*callback)(holder)
 	}
 }
