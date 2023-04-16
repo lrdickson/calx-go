@@ -47,8 +47,8 @@ func (b *BaseObjectEngine) Kernel() string { return "" }
 
 type Producer interface {
 	ObjectEngine
-	SetOnChanged(func())
-	Produce() (any, error)
+	SetOnOutputChanged(func())
+	Output() (any, error)
 }
 
 type Object struct {
@@ -68,10 +68,15 @@ func (o *Object) SetName(name string) error {
 	if _, exists := o.controller.objectNames[name]; exists {
 		return fmt.Errorf("The name %s is taken", name)
 	}
-	o.controller.objectNames[name] = o
-	delete(o.controller.objectNames, o.name)
+
+	// Make sure the name is valid
+	if err := NameValid(name); err != nil {
+		return err
+	}
 
 	// Update the name
+	o.controller.objectNames[name] = o
+	delete(o.controller.objectNames, o.name)
 	o.name = name
 	o.controller.EventTriggered(RenameObjectEvent, o)
 

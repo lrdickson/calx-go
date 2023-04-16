@@ -3,25 +3,33 @@ package formula
 import "github.com/lrdickson/calx/internal/controller"
 
 type Formula struct {
-	controller.BaseObject
-	code         string
-	dependencies map[string]bool
-	dependents   map[string]bool
+	controller.BaseObjectEngine
+	code            string
+	output          any
+	onOutputChanged func()
 }
 
 func (f *Formula) Code() string {
 	return f.code
 }
 
-func AddFormula(c *controller.Controller) {
-	var formula controller.Object = &Formula{}
-	controller.AddObject(c, c.UniqueName(), &formula)
+func NewFormula(c *controller.Controller) *controller.Object {
+	var formula controller.ObjectEngine = &Formula{}
+	return c.NewObject(c.UniqueName(), &formula)
 }
 
-func (f *Formula) AddDependency(c *controller.Controller, name string) {
-	f.dependencies[name] = true
-	c.AddListener(controller.RenameObjectEvent, name, func(dependencyName string) {
-		f.dependencies[dependencyName] = true
-		delete(f.dependencies, name)
-	})
+func Kernel() string {
+	return "Go"
+}
+
+func Consume(any) error {
+	return nil
+}
+
+func (f *Formula) Output() (any, error) {
+	return f.output, nil
+}
+
+func (f *Formula) SetOnOutputChanged(changed func()) {
+	f.onOutputChanged = changed
 }
