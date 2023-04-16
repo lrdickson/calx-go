@@ -20,7 +20,7 @@ func AddFormula(c *controller.Controller) {
 
 func (f *Formula) AddDependency(c *controller.Controller, name string) {
 	f.dependencies[name] = true
-	c.AddListener(controller.RenameVarEvent, name, func(dependencyName string) {
+	c.AddListener(controller.RenameObjectEvent, name, func(dependencyName string) {
 		f.dependencies[dependencyName] = true
 		delete(f.dependencies, name)
 	})

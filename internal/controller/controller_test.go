@@ -2,8 +2,8 @@ package controller
 
 import "testing"
 
-func AddBaseObject(c *Controller) *ObjectHolder {
-	var obj Object = &BaseObject{}
+func AddBaseObject(c *Controller) *Object {
+	var obj ObjectEngine = &BaseObjectEngine{}
 	return c.NewObject(c.UniqueName(), &obj)
 }
 
@@ -11,7 +11,7 @@ func TestAddDeleteListener(t *testing.T) {
 	// Test successful listener add
 	c := NewController()
 	obj := AddBaseObject(c)
-	callback := func(_ *ObjectHolder) {}
+	callback := func(_ *Object) {}
 	c.AddListener(NewObjectEvent, obj, &callback)
 	if _, exists := c.listeners[NewObjectEvent][obj][&callback]; !exists {
 		t.Fatal("Failed to add a listener")
@@ -28,7 +28,7 @@ func TestAddDeleteVar(t *testing.T) {
 	// Setup the add listener
 	c := NewController()
 	name := ""
-	callback := func(obj *ObjectHolder) {
+	callback := func(obj *Object) {
 		name = obj.Name()
 	}
 	c.AddGlobalListener(NewObjectEvent, &callback)
@@ -57,7 +57,7 @@ func TestRenameVar(t *testing.T) {
 
 	// Add the listener
 	listenerCalled := false
-	callback := func(_ *ObjectHolder) {
+	callback := func(_ *Object) {
 		listenerCalled = true
 	}
 	c.AddListener(RenameObjectEvent, obj, &callback)

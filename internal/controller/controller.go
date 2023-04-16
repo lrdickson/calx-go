@@ -15,12 +15,12 @@ const (
 
 var events []Event = []Event{NewObjectEvent, RenameObjectEvent, DeleteObjectEvent}
 
-type Listener *func(*ObjectHolder)
-type listenerMap map[Event]map[*ObjectHolder]map[Listener]bool
+type Listener *func(*Object)
+type listenerMap map[Event]map[*Object]map[Listener]bool
 
 type Controller struct {
-	objects         map[*ObjectHolder]bool
-	objectNames     map[string]*ObjectHolder
+	objects         map[*Object]bool
+	objectNames     map[string]*Object
 	listeners       listenerMap
 	globalListeners map[Event]map[Listener]bool
 }
@@ -28,8 +28,8 @@ type Controller struct {
 func NewController() *Controller {
 	// Make the new controller
 	controller := &Controller{
-		objects:         make(map[*ObjectHolder]bool),
-		objectNames:     make(map[string]*ObjectHolder),
+		objects:         make(map[*Object]bool),
+		objectNames:     make(map[string]*Object),
 		listeners:       make(listenerMap),
 		globalListeners: make(map[Event]map[Listener]bool),
 	}
@@ -51,11 +51,11 @@ func (c *Controller) AddEvent(event Event) {
 	}
 
 	// Add the event to the listener maps
-	c.listeners[event] = make(map[*ObjectHolder]map[Listener]bool)
+	c.listeners[event] = make(map[*Object]map[Listener]bool)
 	c.globalListeners[event] = make(map[Listener]bool)
 }
 
-func (c Controller) IterVariables(iter func(*ObjectHolder) bool) {
+func (c Controller) IterVariables(iter func(*Object) bool) {
 	for key := range c.objects {
 		cont := iter(key)
 		if !cont {
@@ -82,61 +82,61 @@ func (c *Controller) UniqueName() string {
 	return name
 }
 
-func (c *Controller) NewObject(name string, obj *Object) *ObjectHolder {
-	// Create the object holder
-	holder := &ObjectHolder{object: obj, name: name, controller: c}
-	_, isProducer := (*obj).(Producer)
+func (c *Controller) NewObject(name string, engine *ObjectEngine) *Object {
+	// Create the object object
+	object := &Object{engine: engine, name: name, controller: c}
+	_, isProducer := (*engine).(Producer)
 	if isProducer {
-		holder.dependencies = make([]*ObjectHolder, 0)
+		object.dependencies = make([]*Object, 0)
 	}
-	_, isConsumer := (*obj).(Consumer)
+	_, isConsumer := (*engine).(Consumer)
 	if isConsumer {
-		holder.dependents = make([]*ObjectHolder, 0)
+		object.dependents = make([]*Object, 0)
 	}
 
 	// Add the object to the map
-	c.objects[holder] = true
-	c.objectNames[name] = holder
+	c.objects[object] = true
+	c.objectNames[name] = object
 
 	// Trigger the callback
 	for callback := range c.globalListeners[NewObjectEvent] {
-		(*callback)(holder)
+		(*callback)(object)
 	}
-	return holder
+	return object
 }
 
-func (c *Controller) RemoveObject(holder *ObjectHolder) {
-	(*holder.object).Close()
+func (c *Controller) RemoveObject(object *Object) {
+	(*object.engine).Close()
 
 	// Remove object from the maps
-	if _, exists := c.objectNames[holder.Name()]; exists {
-		delete(c.objectNames, holder.Name())
+	if _, exists := c.objectNames[object.Name()]; exists {
+		delete(c.objectNames, object.Name())
 	}
-	if _, exists := c.objects[holder]; exists {
-		delete(c.objects, holder)
+	if _, exists := c.objects[object]; exists {
+		delete(c.objects, object)
 	}
 
 	// Run the event
-	c.EventTriggered(DeleteObjectEvent, holder)
+	c.EventTriggered(DeleteObjectEvent, object)
 	for _, event := range events {
-		delete(c.listeners[event], holder)
+		delete(c.listeners[event], object)
 	}
 }
 
-func (c *Controller) AddListener(event Event, holder *ObjectHolder, callback *func(*ObjectHolder)) {
+func (c *Controller) AddListener(event Event, object *Object, callback *func(*Object)) {
 	if _, exists := c.listeners[event]; !exists {
 		// Should I just add the event?
 		return
 	}
-	if _, exists := c.listeners[event][holder]; !exists {
-		c.listeners[event][holder] = make(map[Listener]bool)
+	if _, exists := c.listeners[event][object]; !exists {
+		c.listeners[event][object] = make(map[Listener]bool)
 	}
-	if !c.listeners[event][holder][callback] {
-		c.listeners[event][holder][callback] = true
+	if !c.listeners[event][object][callback] {
+		c.listeners[event][object][callback] = true
 	}
 }
 
-func (c *Controller) AddGlobalListener(event Event, callback *func(*ObjectHolder)) {
+func (c *Controller) AddGlobalListener(event Event, callback *func(*Object)) {
 	if _, exists := c.globalListeners[event]; !exists {
 		// Should I just add the event?
 		return
@@ -146,28 +146,28 @@ func (c *Controller) AddGlobalListener(event Event, callback *func(*ObjectHolder
 	}
 }
 
-func (c *Controller) DeleteListener(event Event, holder *ObjectHolder, callback *func(*ObjectHolder)) {
-	if _, exists := c.listeners[event][holder]; !exists {
+func (c *Controller) DeleteListener(event Event, object *Object, callback *func(*Object)) {
+	if _, exists := c.listeners[event][object]; !exists {
 		return
 	}
-	if _, exists := c.listeners[event][holder][callback]; !exists {
+	if _, exists := c.listeners[event][object][callback]; !exists {
 		return
 	}
-	delete(c.listeners[event][holder], callback)
+	delete(c.listeners[event][object], callback)
 }
 
-func (c Controller) EventTriggered(event Event, holder *ObjectHolder) {
+func (c Controller) EventTriggered(event Event, object *Object) {
 	if _, exists := c.listeners[event]; !exists {
 		log.Println("Error: event", event, "does not exist!")
 		return
 	}
-	callbacks, exists := c.listeners[event][holder]
+	callbacks, exists := c.listeners[event][object]
 	if exists {
 		for callback := range callbacks {
-			(*callback)(holder)
+			(*callback)(object)
 		}
 	}
 	for callback := range c.globalListeners[event] {
-		(*callback)(holder)
+		(*callback)(object)
 	}
 }

@@ -28,39 +28,42 @@ func NameValid(input string) error {
 	return nil
 }
 
-type Object interface {
+type ObjectEngine interface {
 	Close() error
+	Kernel() string
 }
 
 type Consumer interface {
-	Object
+	ObjectEngine
 	Consume(any) error
 }
 
-type BaseObject struct {
+type BaseObjectEngine struct {
 }
 
-func (b *BaseObject) Close() error { return nil }
+func (b *BaseObjectEngine) Close() error { return nil }
+
+func (b *BaseObjectEngine) Kernel() string { return "" }
 
 type Producer interface {
-	Object
-	SetReady(func())
+	ObjectEngine
+	SetOnChanged(func())
 	Produce() (any, error)
 }
 
-type ObjectHolder struct {
-	object       *Object
-	dependencies []*ObjectHolder
-	dependents   []*ObjectHolder
+type Object struct {
 	controller   *Controller
+	dependencies []*Object
+	dependents   []*Object
+	engine       *ObjectEngine
 	name         string
 }
 
-func (o *ObjectHolder) Name() string {
+func (o *Object) Name() string {
 	return o.name
 }
 
-func (o *ObjectHolder) SetName(name string) error {
+func (o *Object) SetName(name string) error {
 	// Make sure the name is unique
 	if _, exists := o.controller.objectNames[name]; exists {
 		return fmt.Errorf("The name %s is taken", name)
@@ -74,4 +77,8 @@ func (o *ObjectHolder) SetName(name string) error {
 
 	// Success
 	return nil
+}
+
+func (o *Object) Engine() *ObjectEngine {
+	return o.engine
 }
