@@ -30,7 +30,6 @@ func NameValid(input string) error {
 
 type ObjectEngine interface {
 	Close() error
-	Kernel() string
 }
 
 type Consumer interface {
@@ -42,8 +41,6 @@ type BaseObjectEngine struct {
 }
 
 func (b *BaseObjectEngine) Close() error { return nil }
-
-func (b *BaseObjectEngine) Kernel() string { return "" }
 
 type Producer interface {
 	ObjectEngine
