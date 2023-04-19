@@ -46,6 +46,7 @@ type Producer interface {
 	ObjectEngine
 	SetOnOutputChanged(func())
 	Output() (any, error)
+	Wait()
 }
 
 type Object struct {
@@ -83,4 +84,16 @@ func (o *Object) SetName(name string) error {
 
 func (o *Object) Engine() *ObjectEngine {
 	return o.engine
+}
+
+func (o *Object) Dependencies() []*Object {
+	return o.dependencies
+}
+
+func (o *Object) Wait() {
+	(*o.Engine()).(Producer).Wait()
+}
+
+func (o *Object) Output() (any, error) {
+	return (*o.Engine()).(Producer).Output()
 }
