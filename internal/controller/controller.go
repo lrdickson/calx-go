@@ -16,11 +16,11 @@ const (
 var events []Event = []Event{NewObjectEvent, RenameObjectEvent, DeleteObjectEvent}
 
 type Listener *func(*Object)
-type listenerMap map[Event]map[*Object]map[Listener]bool
+type listenerMap map[Event]map[ObjectId]map[Listener]bool
 
 type Controller struct {
-	objects         map[*Object]bool
-	objectNames     map[string]*Object
+	objects         map[ObjectId]*Object
+	objectNames     map[string]ObjectId
 	listeners       listenerMap
 	globalListeners map[Event]map[Listener]bool
 }
@@ -28,8 +28,8 @@ type Controller struct {
 func NewController() *Controller {
 	// Make the new controller
 	controller := &Controller{
-		objects:         make(map[*Object]bool),
-		objectNames:     make(map[string]*Object),
+		objects:         make(map[ObjectId]bool),
+		objectNames:     make(map[string]ObjectId),
 		listeners:       make(listenerMap),
 		globalListeners: make(map[Event]map[Listener]bool),
 	}
@@ -51,11 +51,11 @@ func (c *Controller) AddEvent(event Event) {
 	}
 
 	// Add the event to the listener maps
-	c.listeners[event] = make(map[*Object]map[Listener]bool)
+	c.listeners[event] = make(map[ObjectId]map[Listener]bool)
 	c.globalListeners[event] = make(map[Listener]bool)
 }
 
-func (c Controller) IterVariables(iter func(*Object) bool) {
+func (c Controller) IterVariables(iter func(ObjectId) bool) {
 	for key := range c.objects {
 		cont := iter(key)
 		if !cont {
@@ -82,17 +82,9 @@ func (c *Controller) UniqueName() string {
 	return name
 }
 
-func (c *Controller) NewObject(name string, engine *ObjectEngine) *Object {
+func (c *Controller) NewObject(name string) *Object {
 	// Create the object object
-	object := &Object{engine: engine, name: name, controller: c}
-	_, isProducer := (*engine).(Producer)
-	if isProducer {
-		object.dependencies = make([]*Object, 0)
-	}
-	_, isConsumer := (*engine).(Consumer)
-	if isConsumer {
-		object.dependents = make([]*Object, 0)
-	}
+	object := &Object{name: name, controller: c}
 
 	// Add the object to the map
 	c.objects[object] = true

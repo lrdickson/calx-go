@@ -8,6 +8,9 @@
 
 ### Details
 
+- kernel interface
+
+
 - Variable as interface with implementations
 	- formula
 	- file
@@ -34,6 +37,18 @@
 	- Listen for all variables
 	- Listen by variable name?
 		- Pairs well with delete
+
+### Kernel Interface
+
+- objects represented as an ID
+- Kernels may keep an internal representation of variables as necessary
+
+- Object ID
+  - Allows it to communicate across separate devices
+- Mark object for update
+- Update object
+- Signal callback
+- doesn't require complicated interface system
 
 ## Objects
 

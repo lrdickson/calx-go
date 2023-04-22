@@ -28,32 +28,12 @@ func NameValid(input string) error {
 	return nil
 }
 
-type ObjectEngine interface {
-	Close() error
-}
-
-type Consumer interface {
-	ObjectEngine
-	Consume(any) error
-}
-
-type BaseObjectEngine struct {
-}
-
-func (b *BaseObjectEngine) Close() error { return nil }
-
-type Producer interface {
-	ObjectEngine
-	SetOnOutputChanged(func())
-	Output() (any, error)
-	Wait()
-}
+type ObjectId int
 
 type Object struct {
 	controller   *Controller
 	dependencies []*Object
 	dependents   []*Object
-	engine       *ObjectEngine
 	name         string
 }
 
@@ -73,7 +53,7 @@ func (o *Object) SetName(name string) error {
 	}
 
 	// Update the name
-	o.controller.objectNames[name] = o
+	o.controller.objectNames[name] = o.controller.objectNames[o.name]
 	delete(o.controller.objectNames, o.name)
 	o.name = name
 	o.controller.EventTriggered(RenameObjectEvent, o)
