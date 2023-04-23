@@ -1,16 +1,17 @@
 package controller
 
-import "testing"
+import (
+	"testing"
+)
 
-func AddBaseObject(c *Controller) *Object {
-	var obj ObjectEngine = &BaseObjectEngine{}
-	return c.NewObject(c.UniqueName(), &obj)
+func AddObject(c *Controller) ObjectId {
+	return c.NewObject(c.UniqueName())
 }
 
 func TestAddDeleteListener(t *testing.T) {
 	// Test successful listener add
 	c := NewController()
-	obj := AddBaseObject(c)
+	obj := AddObject(c)
 	callback := func(_ *Object) {}
 	c.AddListener(NewObjectEvent, obj, &callback)
 	if _, exists := c.listeners[NewObjectEvent][obj][&callback]; !exists {
@@ -32,10 +33,10 @@ func TestAddDeleteVar(t *testing.T) {
 		name = obj.Name()
 	}
 	c.AddGlobalListener(NewObjectEvent, &callback)
-	obj := AddBaseObject(c)
+	obj := AddObject(c)
 
 	// Check for a successful add
-	AddBaseObject(c)
+	AddObject(c)
 	if name == "" {
 		t.Fatal("Name reciever is still empty")
 	}
@@ -53,18 +54,26 @@ func TestAddDeleteVar(t *testing.T) {
 func TestRenameVar(t *testing.T) {
 	// Add a variable
 	c := NewController()
-	obj := AddBaseObject(c)
+	var obj *Object
+	newObjectCallback := func(o *Object) {
+		obj = o
+	}
+	c.AddGlobalListener(NewObjectEvent, &newObjectCallback)
+	id := AddObject(c)
 
 	// Add the listener
 	listenerCalled := false
 	callback := func(_ *Object) {
 		listenerCalled = true
 	}
-	c.AddListener(RenameObjectEvent, obj, &callback)
+	c.AddListener(RenameObjectEvent, id, &callback)
 
 	// Rename the variable
 	newName := "NewName"
-	obj.SetName(newName)
+	err := c.Rename(id, newName)
+	if err != nil {
+		t.Fatal("Failed to rename variable:", err)
+	}
 
 	// Check the result
 	if obj.Name() != newName {
