@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"strings"
+	"sync"
 )
 
 func NameValid(input string) error {
@@ -32,14 +34,9 @@ type ObjectId int
 type Object struct {
 	id           ObjectId
 	name         string
+	data         map[string]json.RawMessage
+	output       json.RawMessage
+	outputWait   sync.WaitGroup
 	dependencies []*Object
 	dependents   []*Object
-}
-
-func (o *Object) Id() ObjectId {
-	return o.id
-}
-
-func (o *Object) Name() string {
-	return o.name
 }

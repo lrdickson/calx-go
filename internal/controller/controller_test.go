@@ -30,7 +30,7 @@ func TestAddDeleteVar(t *testing.T) {
 	c := NewController()
 	name := ""
 	callback := func(obj *Object) {
-		name = obj.Name()
+		name = obj.name
 	}
 	c.AddGlobalListener(NewObjectEvent, &callback)
 	obj := AddObject(c)
@@ -70,13 +70,13 @@ func TestRenameVar(t *testing.T) {
 
 	// Rename the variable
 	newName := "NewName"
-	err := c.Rename(id, newName)
+	err := c.SetName(id, newName)
 	if err != nil {
 		t.Fatal("Failed to rename variable:", err)
 	}
 
 	// Check the result
-	if obj.Name() != newName {
+	if obj.name != newName {
 		t.Fatal("Rename failed")
 	}
 	if !listenerCalled {

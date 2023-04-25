@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -63,27 +65,27 @@ func (c *Controller) NewObject(name string) ObjectId {
 	// Create the object object
 	objectId := c.objectIdCount
 	c.objectIdCount++
-	object := &Object{name: name, id: objectId}
+	obj := &Object{name: name, id: objectId}
 
 	// Add the object to the map
-	c.objects[objectId] = object
+	c.objects[objectId] = obj
 	c.objectNames[name] = objectId
 
 	// Trigger the callback
 	for callback := range c.globalListeners[NewObjectEvent] {
-		(*callback)(object)
+		(*callback)(obj)
 	}
 	return objectId
 }
 
 func (c *Controller) RemoveObject(id ObjectId) {
-	// Remove object from the maps
-	object, exists := c.objects[id]
+	// Remove obj from the maps
+	obj, exists := c.objects[id]
 	if exists {
 		delete(c.objects, id)
 	}
-	if _, exists := c.objectNames[object.Name()]; exists {
-		delete(c.objectNames, object.Name())
+	if _, exists := c.objectNames[obj.name]; exists {
+		delete(c.objectNames, obj.name)
 	}
 
 	// Run the event
@@ -93,11 +95,27 @@ func (c *Controller) RemoveObject(id ObjectId) {
 	}
 }
 
-func (c *Controller) Rename(id ObjectId, name string) error {
-	// Make sure the object exists
-	o, exists := c.objects[id]
+func (c *Controller) getObject(id ObjectId) (*Object, error) {
+	obj, exists := c.objects[id]
 	if !exists {
-		return fmt.Errorf("Name object not found with id: %d", id)
+		return obj, errors.New("Object does not exist")
+	}
+	return obj, nil
+}
+
+func (c *Controller) Name(id ObjectId) (string, error) {
+	obj, exists := c.objects[id]
+	if !exists {
+		return "", errors.New("Object does not exist")
+	}
+	return obj.name, nil
+}
+
+func (c *Controller) SetName(id ObjectId, name string) error {
+	// Make sure the object exists
+	o, err := c.getObject(id)
+	if err != nil {
+		return err
 	}
 
 	// Make sure the name is unique
@@ -122,13 +140,31 @@ func (c *Controller) Rename(id ObjectId, name string) error {
 	return nil
 }
 
-func (c *Controller) Objects(id ObjectId) *Object {
-	return c.objects[id]
+func (c *Controller) Data(id ObjectId, key string) (json.RawMessage, error) {
+	obj, err := c.getObject(id)
+	if err != nil {
+		return json.RawMessage{}, err
+	}
+	data, exists := obj.data[key]
+	if !exists {
+		return json.RawMessage{}, fmt.Errorf("Object %d(%s) does not have key %s",
+			id, obj.name, key)
+	}
+	return data, nil
 }
 
-func (c Controller) IterObjects(iter func(ObjectId, *Object) bool) {
-	for id, obj := range c.objects {
-		cont := iter(id, obj)
+func (c *Controller) SetData(id ObjectId, key string, data json.RawMessage) error {
+	_, err := c.getObject(id)
+	if err != nil {
+		return err
+	}
+	c.objects[id].data[key] = data
+	return nil
+}
+
+func (c Controller) IterObjects(iter func(ObjectId) bool) {
+	for id := range c.objects {
+		cont := iter(id)
 		if !cont {
 			break
 		}
@@ -189,7 +225,7 @@ func (c Controller) EventTriggered(event Event, id ObjectId) {
 		log.Println("Error: event", event, "does not exist!")
 		return
 	}
-	object, exists := c.objects[id]
+	obj, exists := c.objects[id]
 	if !exists {
 		log.Println("Error: object", event, "does not exist!")
 		return
@@ -197,10 +233,10 @@ func (c Controller) EventTriggered(event Event, id ObjectId) {
 	callbacks, exists := c.listeners[event][id]
 	if exists {
 		for callback := range callbacks {
-			(*callback)(object)
+			(*callback)(obj)
 		}
 	}
 	for callback := range c.globalListeners[event] {
-		(*callback)(object)
+		(*callback)(obj)
 	}
 }
