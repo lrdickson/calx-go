@@ -12,7 +12,7 @@ func TestAddDeleteListener(t *testing.T) {
 	// Test successful listener add
 	c := NewController()
 	obj := AddObject(c)
-	callback := func(_ *Object) {}
+	callback := func(_ ObjectId) {}
 	c.AddListener(NewObjectEvent, obj, &callback)
 	if _, exists := c.listeners[NewObjectEvent][obj][&callback]; !exists {
 		t.Fatal("Failed to add a listener")
@@ -29,8 +29,8 @@ func TestAddDeleteVar(t *testing.T) {
 	// Setup the add listener
 	c := NewController()
 	name := ""
-	callback := func(obj *Object) {
-		name = obj.name
+	callback := func(id ObjectId) {
+		name, _ = c.Name(id)
 	}
 	c.AddGlobalListener(NewObjectEvent, &callback)
 	obj := AddObject(c)
@@ -54,16 +54,11 @@ func TestAddDeleteVar(t *testing.T) {
 func TestRenameVar(t *testing.T) {
 	// Add a variable
 	c := NewController()
-	var obj *Object
-	newObjectCallback := func(o *Object) {
-		obj = o
-	}
-	c.AddGlobalListener(NewObjectEvent, &newObjectCallback)
 	id := AddObject(c)
 
 	// Add the listener
 	listenerCalled := false
-	callback := func(_ *Object) {
+	callback := func(_ ObjectId) {
 		listenerCalled = true
 	}
 	c.AddListener(RenameObjectEvent, id, &callback)
@@ -76,7 +71,7 @@ func TestRenameVar(t *testing.T) {
 	}
 
 	// Check the result
-	if obj.name != newName {
+	if n, _ := c.Name(id); n != newName {
 		t.Fatal("Rename failed")
 	}
 	if !listenerCalled {

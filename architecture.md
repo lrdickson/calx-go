@@ -8,8 +8,16 @@
 
 ### Details
 
-- kernel interface
-
+- Outputs are versioned
+	- When object is updated, version is incremented
+	- New output map created for that version
+	- Known output from non-dependents are copied from the previous
+		- Last compatable version for an object output is recorded
+	- New version number is reported so workers can stop producing outdated output
+		- Maybe report which ones need to stop/can continue?
+	- Output of updated object sent to all dependents with version number
+	- Object reply with new data to fill out new map
+	- Does dependency versioning also need to be tracked?
 
 - Variable as interface with implementations
 	- formula
@@ -30,25 +38,21 @@
 	- Add
 	- Delete
 	- Rename
-	- DataUpdate
-	- Formula
+	- OutputChanged
+	- MetaDataChanged
 		- CodeUpdate
 - Add listener functions
 	- Listen for all variables
-	- Listen by variable name?
+	- Listen by variable id
 		- Pairs well with delete
 
-### Kernel Interface
+### Kernel
 
 - objects represented as an ID
 - Kernels may keep an internal representation of variables as necessary
 
 - Object ID
   - Allows it to communicate across separate devices
-- Mark object for update
-- Update object
-- Signal callback
-- doesn't require complicated interface system
 
 ## Objects
 
