@@ -1,9 +1,10 @@
 package controller
 
 import (
-	"encoding/json"
 	"log"
 	"strconv"
+
+	"github.com/fxamacker/cbor/v2"
 )
 
 type Event int
@@ -19,13 +20,11 @@ var events []Event = []Event{NewObjectEvent, RenameObjectEvent, DeleteObjectEven
 type Listener *func(ObjectId)
 type listenerMap map[Event]map[ObjectId]map[Listener]bool
 
-type OutputVersion int64
-
 type Controller struct {
 	objectIdCount     ObjectId
 	objects           map[ObjectId]*Object
 	objectNames       map[string]ObjectId
-	objectOutput      map[OutputVersion]map[ObjectId]json.RawMessage
+	objectOutput      map[OutputVersion]map[ObjectId]cbor.RawMessage
 	listeners         listenerMap
 	globalListeners   map[Event]map[Listener]bool
 	metadataListeners map[ObjectId]map[string]map[Listener]bool

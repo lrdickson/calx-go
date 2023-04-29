@@ -1,11 +1,12 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/fxamacker/cbor/v2"
 )
 
 func NameValid(input string) error {
@@ -29,12 +30,13 @@ func NameValid(input string) error {
 	return nil
 }
 
-type ObjectId int
+type ObjectId int64
+type OutputVersion int64
 
 type Object struct {
 	id           ObjectId
 	name         string
-	metadata     map[string]json.RawMessage
+	metadata     map[string]cbor.RawMessage
 	dependencies []*Object
 	dependents   []*Object
 }
@@ -46,7 +48,7 @@ func (c *Controller) NewObject(name string) ObjectId {
 	obj := &Object{
 		id:           objectId,
 		name:         name,
-		metadata:     make(map[string]json.RawMessage),
+		metadata:     make(map[string]cbor.RawMessage),
 		dependencies: make([]*Object, 0),
 		dependents:   make([]*Object, 0),
 	}
@@ -124,20 +126,20 @@ func (c *Controller) SetName(id ObjectId, name string) error {
 	return nil
 }
 
-func (c *Controller) MetaData(id ObjectId, key string) (json.RawMessage, error) {
+func (c *Controller) MetaData(id ObjectId, key string) (cbor.RawMessage, error) {
 	obj, err := c.getObject(id)
 	if err != nil {
-		return json.RawMessage{}, err
+		return cbor.RawMessage{}, err
 	}
 	data, exists := obj.metadata[key]
 	if !exists {
-		return json.RawMessage{}, fmt.Errorf("Object %d(%s) does not have key %s",
+		return cbor.RawMessage{}, fmt.Errorf("Object %d(%s) does not have key %s",
 			id, obj.name, key)
 	}
 	return data, nil
 }
 
-func (c *Controller) SetMetaData(id ObjectId, key string, data json.RawMessage) error {
+func (c *Controller) SetMetaData(id ObjectId, key string, data cbor.RawMessage) error {
 	_, err := c.getObject(id)
 	if err != nil {
 		return err
@@ -146,24 +148,40 @@ func (c *Controller) SetMetaData(id ObjectId, key string, data json.RawMessage) 
 	return nil
 }
 
-func (c *Controller) Output(id ObjectId) (json.RawMessage, error) {
-	obj, err := c.getObject(id)
-	if err != nil {
-		return json.RawMessage{}, err
+func (c *Controller) getOutputMap(version OutputVersion) (map[ObjectId]cbor.RawMessage, error) {
+	outputMap, exists := c.objectOutput[version]
+	if !exists {
+		return outputMap, fmt.Errorf("Version %d is not currently available", version)
 	}
-	return obj.output, nil
+	return outputMap, nil
 }
 
-func (c *Controller) SetOutput(id ObjectId, data json.RawMessage, version OutputVersion) error {
-	_, err := c.getObject(id)
+func (c *Controller) Output(version OutputVersion, id ObjectId) (cbor.RawMessage, error) {
+	outputMap, err := c.getOutputMap(version)
+	if err != nil {
+		return cbor.RawMessage{}, err
+	}
+	output, exists := outputMap[id]
+	if !exists {
+		return output, fmt.Errorf("Version %d does not contain output for object %d", version, id)
+	}
+	return output, nil
+}
+
+func (c *Controller) SetOutput(version OutputVersion, id ObjectId, data cbor.RawMessage) error {
+	outputMap, err := c.getOutputMap(version)
 	if err != nil {
 		return err
 	}
-	c.objects[id].output[version] = data
+	_, exists := outputMap[id]
+	if !exists {
+		return fmt.Errorf("Version %d does not contain output for object %d", version, id)
+	}
+	outputMap[id] = data
 	return nil
 }
 
-func (c Controller) IterObjects(iter func(ObjectId) bool) {
+func (c Controller) Range(iter func(ObjectId) bool) {
 	for id := range c.objects {
 		cont := iter(id)
 		if !cont {
