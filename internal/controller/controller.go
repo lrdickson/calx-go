@@ -22,21 +22,22 @@ type listenerMap map[Event]map[ObjectId]map[Listener]bool
 
 type Controller struct {
 	objectIdCount     ObjectId
-	objects           map[ObjectId]*Object
+	objects           map[ObjectVersion]map[ObjectId]*Object
 	objectNames       map[string]ObjectId
-	objectOutput      map[OutputVersion]map[ObjectId]cbor.RawMessage
+	objectOutput      map[ObjectVersion]map[ObjectId]cbor.RawMessage
 	listeners         listenerMap
 	globalListeners   map[Event]map[Listener]bool
 	metadataListeners map[ObjectId]map[string]map[Listener]bool
-	latestVersion     OutputVersion
-	completeVersion   OutputVersion
+	latestVersion     ObjectVersion
+	completeVersion   ObjectVersion
 }
 
 func NewController() *Controller {
 	// Make the new controller
 	controller := &Controller{
-		objects:           make(map[ObjectId]*Object),
+		objects:           make(map[ObjectVersion]map[ObjectId]*Object),
 		objectNames:       make(map[string]ObjectId),
+		objectOutput:      make(map[ObjectVersion]map[ObjectId]cbor.RawMessage),
 		listeners:         make(listenerMap),
 		globalListeners:   make(map[Event]map[Listener]bool),
 		metadataListeners: make(map[ObjectId]map[string]map[Listener]bool),

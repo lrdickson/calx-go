@@ -31,14 +31,15 @@ func NameValid(input string) error {
 }
 
 type ObjectId int64
-type OutputVersion int64
+type ObjectVersion int64
 
 type Object struct {
 	id           ObjectId
 	name         string
 	metadata     map[string]cbor.RawMessage
-	dependencies []*Object
-	dependents   []*Object
+	dependencies []ObjectId
+	dependents   []ObjectId
+	output       cbor.RawMessage
 }
 
 func (c *Controller) NewObject(name string) ObjectId {
@@ -49,12 +50,12 @@ func (c *Controller) NewObject(name string) ObjectId {
 		id:           objectId,
 		name:         name,
 		metadata:     make(map[string]cbor.RawMessage),
-		dependencies: make([]*Object, 0),
-		dependents:   make([]*Object, 0),
+		dependencies: make([]ObjectId, 0),
+		dependents:   make([]ObjectId, 0),
 	}
 
 	// Add the object to the map
-	c.objects[objectId] = obj
+	c.objects[c.latestVersion][objectId] = obj
 	c.objectNames[name] = objectId
 
 	// Trigger the callback
@@ -64,7 +65,29 @@ func (c *Controller) NewObject(name string) ObjectId {
 	return objectId
 }
 
-func (c *Controller) RemoveObject(id ObjectId) {
+func (c *Controller) RemoveObject(id ObjectId) error {
+	// Initialize the new generation
+	previousVersion := c.latestVersion
+	c.latestVersion++
+	newGeneration := make(map[ObjectId]*Object)
+
+	descendants, err := c.descendants(previousVersion, id)
+	if err != nil {
+		return err
+	}
+	for id, obj := range c.objects[previousVersion] {
+		if descendants[id] {
+			newObj := &Object{
+				id:           obj.id,
+				name:         obj.name,
+				dependencies: obj.dependencies,
+				dependents:   obj.dependents,
+			}
+			newGeneration[id] = newObj
+		} else {
+			newGeneration[id] = obj
+		}
+	}
 	// Remove obj from the maps
 	obj, exists := c.objects[id]
 	if exists {
@@ -81,10 +104,15 @@ func (c *Controller) RemoveObject(id ObjectId) {
 	}
 }
 
-func (c *Controller) getObject(id ObjectId) (*Object, error) {
-	obj, exists := c.objects[id]
+func (c *Controller) getObject(version ObjectVersion, id ObjectId) (*Object, error) {
+	_, exists := c.objects[version]
 	if !exists {
-		return obj, errors.New("Object does not exist")
+		return nil, fmt.Errorf("Version %d not currently available", version)
+	}
+
+	obj, exists := c.objects[version][id]
+	if !exists {
+		return obj, fmt.Errorf("Object %d does not exist in version %d", id, version)
 	}
 	return obj, nil
 }
@@ -148,7 +176,7 @@ func (c *Controller) SetMetaData(id ObjectId, key string, data cbor.RawMessage) 
 	return nil
 }
 
-func (c *Controller) getOutputMap(version OutputVersion) (map[ObjectId]cbor.RawMessage, error) {
+func (c *Controller) getOutputMap(version ObjectVersion) (map[ObjectId]cbor.RawMessage, error) {
 	outputMap, exists := c.objectOutput[version]
 	if !exists {
 		return outputMap, fmt.Errorf("Version %d is not currently available", version)
@@ -156,7 +184,7 @@ func (c *Controller) getOutputMap(version OutputVersion) (map[ObjectId]cbor.RawM
 	return outputMap, nil
 }
 
-func (c *Controller) Output(version OutputVersion, id ObjectId) (cbor.RawMessage, error) {
+func (c *Controller) Output(version ObjectVersion, id ObjectId) (cbor.RawMessage, error) {
 	outputMap, err := c.getOutputMap(version)
 	if err != nil {
 		return cbor.RawMessage{}, err
@@ -168,7 +196,7 @@ func (c *Controller) Output(version OutputVersion, id ObjectId) (cbor.RawMessage
 	return output, nil
 }
 
-func (c *Controller) SetOutput(version OutputVersion, id ObjectId, data cbor.RawMessage) error {
+func (c *Controller) SetOutput(version ObjectVersion, id ObjectId, data cbor.RawMessage) error {
 	outputMap, err := c.getOutputMap(version)
 	if err != nil {
 		return err
@@ -192,4 +220,50 @@ func (c Controller) Range(iter func(ObjectId) bool) {
 
 func (c Controller) ObjectCount() int {
 	return len(c.objects)
+}
+
+func (c *Controller) descendants(version ObjectVersion, id ObjectId) (map[ObjectId]bool, error) {
+	obj, err := c.getObject(version, id)
+	if err != nil {
+		return nil, err
+	}
+	descendants := map[ObjectId]bool{}
+	for _, dependent := range obj.dependents {
+		descendants[dependent] = true
+		grandDescendants, err := c.descendants(version, dependent)
+		if err != nil {
+			return nil, err
+		}
+		for descendant := range grandDescendants {
+			descendants[descendant] = true
+		}
+	}
+	return descendants, nil
+}
+
+func (c *Controller) newGeneration(changedObj ObjectId) error {
+	// Initialize the new generation
+	previousVersion := c.latestVersion
+	c.latestVersion++
+	newGeneration := make(map[ObjectId]*Object)
+
+	descendants, err := c.descendants(previousVersion, changedObj)
+	if err != nil {
+		return err
+	}
+	for id, obj := range c.objects[previousVersion] {
+		if descendants[id] {
+			newObj := &Object{
+				id:           obj.id,
+				name:         obj.name,
+				dependencies: obj.dependencies,
+				dependents:   obj.dependents,
+			}
+			newGeneration[id] = newObj
+		} else {
+			newGeneration[id] = obj
+		}
+	}
+	c.objects[c.latestVersion] = newGeneration
+	return nil
 }
